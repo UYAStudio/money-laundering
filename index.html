@@ -6,98 +6,196 @@
 <title>家庭記帳</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAu64i2zOVUl_KHRyqrLFxDJwoP2zp3-R0",
+    authDomain: "money-laundering-c2160.firebaseapp.com",
+    projectId: "money-laundering-c2160",
+    storageBucket: "money-laundering-c2160.firebasestorage.app",
+    messagingSenderId: "999545037705",
+    appId: "1:999545037705:web:73a62c66650f8e9107b758"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fbApp);
+  const auth = getAuth(fbApp);
+
+  // expose to window
+  window._db = db;
+  window._fbReady = false;
+  window._fbCols = { recs: 'records', members: 'members', accounts: 'accounts' };
+
+  signInAnonymously(auth).then(()=>{
+    window._fbReady = true;
+    window._fbUID = auth.currentUser?.uid;
+    console.log('Firebase ready, uid:', window._fbUID);
+    if(window._onFbReady) window._onFbReady();
+  }).catch(e=>console.error('FB auth error',e));
+
+  window._fbSave = async (col, data) => {
+    if(!window._fbReady) return null;
+    try { return await addDoc(collection(db, col), {...data, uid: window._fbUID, updatedAt: Date.now()}); }
+    catch(e){ console.error(e); return null; }
+  };
+  window._fbUpdate = async (col, id, data) => {
+    if(!window._fbReady) return;
+    try { await updateDoc(doc(db, col, id), {...data, updatedAt: Date.now()}); }
+    catch(e){ console.error(e); }
+  };
+  window._fbDelete = async (col, id) => {
+    if(!window._fbReady) return;
+    try { await deleteDoc(doc(db, col, id)); }
+    catch(e){ console.error(e); }
+  };
+  window._fbGetAll = async (col) => {
+    if(!window._fbReady) return [];
+    try {
+      const q = query(collection(db, col), orderBy('updatedAt','desc'));
+      const snap = await getDocs(q);
+      return snap.docs.map(d=>({...d.data(), _id: d.id}));
+    } catch(e){ console.error(e); return []; }
+  };
+  window._fbListen = (col, cb) => {
+    if(!window._fbReady) return ()=>{};
+    const q = query(collection(db, col), orderBy('updatedAt','desc'));
+    return onSnapshot(q, snap=>{
+      cb(snap.docs.map(d=>({...d.data(), _id: d.id})));
+    });
+  };
+</script>
 <style>
-/* ═══════════════════════════════════════
-   CSS VARIABLES & RESET
-═══════════════════════════════════════ */
+/* ══════════════════════════════════
+   MORANDI COLOR SYSTEM - LIGHT
+══════════════════════════════════ */
 :root{
-  --bg:#faf9f7; --card:#fff; --tp:#2d2d2d; --ts:#9a9a9a; --bd:rgba(0,0,0,0.08);
-  --pink:#f5b8c4; --peach:#f5c8a0; --mint:#b0e0cc; --sky:#a8d4f0;
-  --lavender:#c8b8f0; --rose:#f0b8d8; --sage:#c0d8b0; --coral:#f0c4b0;
-  --lilac:#d8c8f0; --lemon:#f5e6a0; --ice:#b8e0f0;
-  --exp-grad:linear-gradient(135deg,#f0b8d8,#f5c8a0);
-  --inc-grad:linear-gradient(135deg,#b0e0cc,#a8d4f0);
-  --xfr-grad:linear-gradient(135deg,#a8d4f0,#c8b8f0);
-  --acc:linear-gradient(135deg,#f0b8d8,#d4a0c0);
+  /* M: Pure White Minimal */
+  --bg:#f7f7f7; --card:#ffffff; --tp:#222222; --ts:#aaaaaa; --bd:rgba(0,0,0,0.07);
+  /* Natural rainbow for charts/dots */
+  --m-stone:#f0a050;
+  --m-sage:#90c060;
+  --m-slate:#5090d0;
+  --m-mauve:#a070c8;
+  --m-khaki:#e8c840;
+  --m-lav:#9898c8;
+  --m-teal:#50b890;
+  --m-sand:#e87850;
+  --m-moss:#70b050;
+  --m-rose:#d06090;
+  --m-ash:#4888b8;
+  /* Gradients - white card style, no grad on cards */
+  --g-exp:linear-gradient(135deg,#f5f5f5,#efefef);
+  --g-inc:linear-gradient(135deg,#f5f5f5,#efefef);
+  --g-xfr:linear-gradient(135deg,#f5f5f5,#efefef);
+  --g-acc:linear-gradient(135deg,#f0a050,#e08838);
+  --g-head:linear-gradient(135deg,#e0a060,#c88848,#a07830);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overflow:hidden;height:100vh;display:flex;justify-content:center}
 .app{width:100%;max-width:480px;height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column}
 
-/* ═══════════════════════════════════════
-   SHARED COMPONENTS
-═══════════════════════════════════════ */
-.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0;z-index:5}
+/* ══════════════════════════════════
+   SHARED
+══════════════════════════════════ */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
 .nav-title{font-size:16px;font-weight:700}
-.ib{width:34px;height:34px;border-radius:50%;border:1px solid var(--bd);background:var(--bg);cursor:pointer;font-size:17px;color:var(--ts);display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;transition:all .15s;flex-shrink:0}
-.ib:hover{background:var(--pink);color:#fff}
-.del-ib{border-color:#f0b8c4;background:#fef0f3;color:#d4859a}
+.ib{width:32px;height:32px;border-radius:50%;border:none;background:none;cursor:pointer;font-size:17px;color:var(--ts);display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;transition:all .15s}
+.ib:hover{background:rgba(0,0,0,0.06)}
+.ib.danger{color:#b05a5a}
 .ef-row{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;border:1px solid var(--bd);padding:10px 14px}
-.ef-label{font-size:11px;color:var(--ts);font-weight:700;width:52px;flex-shrink:0}
+.ef-label{font-size:11px;color:var(--ts);font-weight:700;width:48px;flex-shrink:0}
 .ef-input{flex:1;border:none;background:none;font-size:14px;color:var(--tp);font-family:'Nunito',sans-serif;outline:none;font-weight:600}
-.ef-input::placeholder{color:#ccc}
+.ef-input::placeholder{color:#c8c4bc}
 .ef-select{flex:1;border:none;background:none;font-size:14px;color:var(--tp);font-family:'Nunito',sans-serif;outline:none;font-weight:600}
-.btn-save{width:100%;padding:14px;background:var(--acc);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif}
+.btn-save{width:100%;padding:14px;background:var(--g-acc);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;letter-spacing:.3px}
 .add-row{background:none;border:1.5px dashed var(--bd);border-radius:14px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--ts);font-size:13px;font-weight:700;font-family:'Nunito',sans-serif;width:100%;transition:all .15s}
-.add-row:hover{border-color:#d4a0c0;color:#d4a0c0}
+.add-row:hover{border-color:var(--m-stone);color:var(--m-stone)}
 .menu-group{background:var(--card);border-radius:16px;border:1px solid var(--bd);overflow:hidden}
 .menu-item{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--bd);transition:background .12s}
 .menu-item:last-child{border-bottom:none}
-.menu-item:hover{background:#fdf5f8}
-.menu-label{font-size:14px;font-weight:700;flex:1}
-.menu-sub{font-size:11px;color:var(--ts);font-weight:600;margin-top:2px}
-.arrow{font-size:16px;color:var(--ts)}
-.section-lbl{font-size:11px;font-weight:700;color:var(--ts);letter-spacing:.4px;margin-bottom:8px}
+.menu-item:hover{background:rgba(0,0,0,0.03)}
+.menu-lbl{font-size:14px;font-weight:700;flex:1}
+.menu-sub{font-size:11px;color:var(--ts);font-weight:600;margin-top:1px}
+.arrow{font-size:14px;color:var(--ts)}
+.sec-lbl{font-size:11px;font-weight:700;color:var(--ts);letter-spacing:.4px}
 .tag-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 .tag-chip{display:flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
-.tag-chip:hover{border-color:#d4a0c0}
+.tag-chip:hover{border-color:var(--m-stone)}
 .add-tag-row{display:flex;gap:8px}
 .add-tag-row input{flex:1;padding:8px 12px;border:1px solid var(--bd);border-radius:20px;background:var(--card);font-size:13px;color:var(--tp);outline:none;font-family:'Nunito',sans-serif;font-weight:600}
-.add-tag-row input:focus{border-color:#d4a0c0}
-.add-tag-btn{padding:8px 14px;background:var(--acc);color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif}
-.color-swatches{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.add-tag-row input:focus{border-color:var(--m-stone)}
+.add-tag-btn{padding:8px 14px;background:var(--g-acc);color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif}
+.color-swatches{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;flex-shrink:0}
 .swatch.on{border-color:var(--tp);transform:scale(1.15)}
 .save-wrap{padding:10px 0 0}
+.fb-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px}
+.fb-status.ok{color:#6a9a6a;background:#e8f4e8}
+.fb-status.err{color:#8a5a5a;background:#f4e8e8}
 
-/* ═══════════════════════════════════════
-   PAGES (full-screen layers)
-═══════════════════════════════════════ */
-.page{display:none;flex-direction:column;height:calc(100vh - 70px);overflow:hidden}
+/* ══════════════════════════════════
+   PAGE LAYOUT
+══════════════════════════════════ */
+.page{display:none;flex-direction:column;height:calc(100vh - 66px);overflow:hidden}
 .page.active{display:flex}
-.sub-page{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:20;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.sub-page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:20;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);display:none}
 .sub-page.open{display:flex;transform:translateX(0)}
-.sub-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px;flex:1}
+.sub-body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;flex:1}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════
    BOTTOM NAV
-═══════════════════════════════════════ */
-.bottom-nav{display:flex;align-items:center;padding:8px 0 16px;background:var(--card);border-top:1px solid var(--bd);flex-shrink:0;z-index:10}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;background:none;border:none;color:var(--ts);font-size:10px;font-family:'Nunito',sans-serif;font-weight:700;padding:4px 0}
-.nav-item.on{color:var(--tp)}
-.nav-item svg{width:22px;height:22px;stroke-width:2;fill:none;stroke:currentColor}
+══════════════════════════════════ */
+.bottom-nav{display:flex;align-items:center;padding:6px 0 14px;background:var(--card);border-top:1px solid var(--bd);flex-shrink:0}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;background:none;border:none;color:var(--ts);font-size:10px;font-family:'Nunito',sans-serif;font-weight:700;padding:4px 0;transition:color .15s}
+.nav-item.on{color:#f0a050}
+.nav-item svg{width:22px;height:22px;stroke-width:1.8;fill:none;stroke:currentColor}
 .nav-center{flex:1;display:flex;justify-content:center;align-items:center}
-.fab{width:50px;height:50px;border-radius:50%;background:var(--acc);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:-22px;box-shadow:0 4px 12px rgba(212,160,192,.5)}
-.fab svg{width:24px;height:24px;stroke:#fff;stroke-width:2.5;fill:none}
+.fab{width:48px;height:48px;border-radius:50%;background:var(--g-acc);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:-18px;box-shadow:0 4px 14px rgba(184,169,154,.45);transition:transform .15s}
+.fab:active{transform:scale(.95)}
+.fab svg{width:22px;height:22px;stroke:#fff;stroke-width:2.5;fill:none}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════
+   MONTH SELECTOR
+══════════════════════════════════ */
+.month-nav{display:flex;align-items:center;gap:4px}
+.month-btn{font-size:14px;font-weight:700;color:var(--tp);background:none;border:none;cursor:pointer;font-family:'Nunito',sans-serif;padding:4px 8px;border-radius:8px;transition:background .12s}
+.month-btn:hover{background:rgba(0,0,0,0.06)}
+.month-arr{background:none;border:none;cursor:pointer;color:var(--ts);font-size:18px;padding:2px 6px;border-radius:6px;transition:background .12s;font-family:'Nunito',sans-serif}
+.month-arr:hover{background:rgba(0,0,0,0.06)}
+
+/* Month picker overlay */
+.month-picker-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.3)}
+.month-picker-overlay.open{display:flex}
+.month-picker{background:var(--card);border-radius:20px;padding:20px;width:300px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.mp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mp-year-nav{display:flex;align-items:center;gap:8px}
+.mp-year{font-size:16px;font-weight:700}
+.mp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mp-month{padding:10px 6px;border-radius:12px;border:none;background:var(--bg);font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--ts);transition:all .15s;text-align:center}
+.mp-month:hover{background:rgba(0,0,0,0.06);color:var(--tp)}
+.mp-month.on{background:var(--g-acc);color:#fff}
+
+/* ══════════════════════════════════
    RECORDS PAGE
-═══════════════════════════════════════ */
-.summary-row{display:flex;gap:10px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
+══════════════════════════════════ */
+.summary-row{display:flex;gap:10px;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
 .sum-card{flex:1;border-radius:16px;padding:12px 14px}
-.sum-card.exp{background:var(--exp-grad);color:#fff}
-.sum-card.inc{background:var(--inc-grad);color:#fff}
-.sum-lbl{font-size:11px;opacity:.9;font-weight:600}
-.sum-amt{font-size:17px;font-weight:700;margin-top:3px}
-.bal-row{text-align:center;padding:8px;background:var(--card);border-bottom:1px solid var(--bd);font-size:13px;font-weight:700;flex-shrink:0}
+.sum-card.exp{background:var(--card);border:1px solid var(--bd)}
+.sum-card.inc{background:var(--card);border:1px solid var(--bd)}
+.sum-lbl{font-size:11px;font-weight:600;color:var(--ts)}
+.sum-amt{font-size:17px;font-weight:700;margin-top:3px;color:var(--tp)}
+.bal-row{text-align:center;padding:7px;background:var(--card);border-bottom:1px solid var(--bd);font-size:13px;font-weight:700;flex-shrink:0}
 .tab-row{display:flex;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
-.tab-btn{flex:1;padding:10px;font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;color:var(--ts);border-bottom:2px solid transparent;font-family:'Nunito',sans-serif}
-.tab-btn.on{color:var(--tp);border-bottom-color:#d4a0c0}
-.tx-list{overflow-y:auto;padding:0 20px 20px;flex:1}
-.date-hdr{display:flex;justify-content:space-between;padding:14px 0 6px}
+.tab-btn{flex:1;padding:10px;font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;color:var(--ts);border-bottom:2px solid transparent;font-family:'Nunito',sans-serif;transition:all .15s}
+.tab-btn.on{color:var(--tp);border-bottom-color:#f0a050}
+.tx-list{overflow-y:auto;padding:0 18px 20px;flex:1}
+.date-hdr{display:flex;justify-content:space-between;padding:13px 0 5px}
 .date-lbl{font-size:12px;font-weight:700;color:var(--ts)}
-.day-tot{font-size:12px;font-weight:700}
-.tx-item{background:var(--card);border-radius:14px;border:1px solid var(--bd);padding:11px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:transform .12s}
+.tx-item{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:transform .12s}
 .tx-item:hover{transform:translateX(2px)}
 .tx-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .tx-info{flex:1;min-width:0}
@@ -105,259 +203,287 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 .tx-sub{font-size:11px;color:var(--ts);font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tx-right{text-align:right;flex-shrink:0}
 .tx-amt{font-size:14px;font-weight:700}
-.tx-amt.e{color:#d4859a}.tx-amt.i{color:#85c4aa}.tx-amt.x{color:#85aad4}
+.tx-amt.e{color:#b07070}.tx-amt.i{color:#6a9a6a}.tx-amt.x{color:#7a8aaa}
 .tx-mem{font-size:11px;color:var(--ts);font-weight:600;margin-top:2px}
+/* ══════════════════════════════════
+   CALENDAR (records page)
+══════════════════════════════════ */
+.rec-scroll{overflow-y:auto;flex:1;padding-bottom:20px}
+.cal-wrap{padding:8px 12px 6px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
+.cal-weekrow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:2px}
+.cal-weekday{text-align:center;font-size:10px;font-weight:700;color:var(--ts);padding:3px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-day{border-radius:7px;padding:3px 2px;min-height:44px;cursor:pointer;display:flex;flex-direction:column;align-items:center;transition:all .12s}
+.cal-day.has-rec{background:var(--bg)}
+.cal-day.placeholder{cursor:default}
+.cal-day.selected{background:#fff8f0;border:1.5px solid #f0a050}
+.cal-day.today .cal-dn{background:#f0a050;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+.cal-dn{font-size:11px;font-weight:700;color:var(--tp);line-height:20px;min-width:20px;text-align:center;margin-bottom:1px}
+.cal-day.placeholder .cal-dn{color:var(--ts);opacity:.3}
+.cal-ae{font-size:8px;font-weight:700;color:#e05050;line-height:1.2;text-align:center}
+.cal-ai{font-size:8px;font-weight:700;color:#40a060;line-height:1.2;text-align:center}
+.cal-ax{font-size:8px;font-weight:700;color:#5090d0;line-height:1.2;text-align:center}
+.sel-bar{display:none;align-items:center;justify-content:space-between;padding:7px 16px;background:#fff8f0;border-bottom:1px solid rgba(240,160,80,.2);flex-shrink:0}
+.sel-bar.show{display:flex}
+.sel-bar-txt{font-size:12px;font-weight:700;color:#f0a050}
+.sel-bar-clr{font-size:11px;font-weight:700;color:var(--ts);background:rgba(0,0,0,0.05);border:none;border-radius:10px;padding:2px 8px;cursor:pointer;font-family:'Nunito',sans-serif}
 
-/* ═══════════════════════════════════════
+
+/* ══════════════════════════════════
+   RECORD EDIT FORM (shared)
+══════════════════════════════════ */
+.type-seg{display:flex;margin:12px 18px 0;border-radius:13px;overflow:hidden;border:1px solid var(--bd);background:var(--bg);flex-shrink:0}
+.type-seg-btn{flex:1;padding:9px;font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;color:var(--ts);font-family:'Nunito',sans-serif;transition:all .2s;border-radius:12px}
+.type-seg-btn.on-exp{background:var(--g-exp);color:#fff}
+.type-seg-btn.on-inc{background:var(--g-inc);color:#fff}
+.type-seg-btn.on-xfr{background:var(--g-xfr);color:#fff}
+.amt-section{padding:14px 18px 10px;flex-shrink:0;cursor:pointer}
+.amt-lbl{font-size:11px;color:var(--ts);font-weight:700;margin-bottom:4px}
+.amt-val{font-size:36px;font-weight:700;border-bottom:2px solid var(--bd);padding-bottom:8px;transition:border-color .15s;color:var(--tp)}
+.amt-val.focused{border-bottom-color:#f0a050}
+.big-cat-tabs{display:flex;overflow-x:auto;padding:0 18px;gap:16px;flex-shrink:0;border-bottom:1px solid var(--bd);border-top:1px solid var(--bd);scrollbar-width:none}
+.big-cat-tabs::-webkit-scrollbar{display:none}
+.big-cat-tab{font-size:13px;font-weight:700;color:var(--ts);white-space:nowrap;padding:10px 0;border-bottom:2.5px solid transparent;cursor:pointer;flex-shrink:0;transition:all .15s}
+.big-cat-tab.on{color:var(--tp);border-bottom-color:#f0a050}
+.sub-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px;padding:10px 18px;overflow-y:auto;flex:1;align-content:start}
+.sub-cat-item{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.sub-cat-circle{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:all .2s}
+.sub-cat-circle.on{border-color:rgba(0,0,0,0.2);transform:scale(1.08)}
+.sub-cat-name{font-size:10px;font-weight:700;color:var(--ts);text-align:center;transition:color .15s}
+.sub-cat-item.on .sub-cat-name{color:var(--tp)}
+.edit-fields{flex-shrink:0;padding:0 18px;display:flex;flex-direction:column;gap:7px}
+.xfr-form{flex:1;overflow-y:auto;padding:12px 18px;display:none;flex-direction:column;gap:10px}
+.xfr-form.show{display:flex}
+.xfr-lbl{font-size:11px;font-weight:700;color:var(--ts)}
+.xfr-arrow-row{display:flex;align-items:center;gap:8px}
+.xfr-field{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 13px}
+.xfr-field select{width:100%;border:none;background:none;font-size:14px;color:var(--tp);font-family:'Nunito',sans-serif;outline:none;font-weight:600}
+.xfr-arr{font-size:18px;color:var(--ts);flex-shrink:0}
+
+/* ══════════════════════════════════
    CHART PAGE
-═══════════════════════════════════════ */
-.chart-page-scroll{overflow-y:auto;flex:1}
-.type-toggle{display:flex;margin:12px 20px 0;border-radius:14px;overflow:hidden;border:1px solid var(--bd);background:var(--bg);flex-shrink:0}
-.type-tog{flex:1;padding:9px;font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;color:var(--ts);font-family:'Nunito',sans-serif;transition:all .2s}
-.type-tog.on-exp{background:var(--exp-grad);color:#fff;border-radius:13px}
-.type-tog.on-inc{background:var(--inc-grad);color:#fff;border-radius:13px}
-.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 20px}
-.stat-card{background:var(--card);border-radius:14px;border:1px solid var(--bd);padding:11px 12px;position:relative;overflow:hidden}
-.stat-card::before{content:'';position:absolute;top:-16px;right:-16px;width:48px;height:48px;border-radius:50%;opacity:.2}
-.stat-card:nth-child(1)::before{background:#f0b8d8}
-.stat-card:nth-child(2)::before{background:#b0e0cc}
-.stat-card:nth-child(3)::before{background:#c8b8f0}
+══════════════════════════════════ */
+.chart-scroll{overflow-y:auto;flex:1}
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 18px}
+.stat-card{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:10px 12px}
 .stat-lbl{font-size:10px;color:var(--ts);font-weight:700}
-.stat-val{font-size:13px;font-weight:700;margin-top:4px}
-.donut-section{margin:0 20px 14px;background:var(--card);border-radius:20px;border:1px solid var(--bd);padding:20px}
+.stat-val{font-size:13px;font-weight:700;margin-top:3px}
+.donut-sec{margin:0 18px 12px;background:var(--card);border-radius:18px;border:1px solid var(--bd);padding:18px}
 .donut-inner{display:flex;align-items:center;justify-content:center;gap:20px}
 .donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
-.donut-center-lbl{font-size:10px;color:var(--ts);font-weight:600}
-.donut-center-val{font-size:13px;font-weight:700;margin-top:1px}
-.donut-legend{display:table;border-spacing:0 7px}
+.donut-cl{font-size:10px;color:var(--ts);font-weight:600}
+.donut-cv{font-size:13px;font-weight:700;margin-top:1px}
+.dleg{display:table;border-spacing:0 7px}
 .dldc{display:table-cell;vertical-align:middle;padding-right:7px;width:10px}
 .dldot{width:10px;height:10px;border-radius:50%;display:block}
-.dlnc{display:table-cell;vertical-align:middle;padding-right:4px;white-space:nowrap;font-size:12px;font-weight:700}
+.dlnc{display:table-cell;vertical-align:middle;padding-right:3px;white-space:nowrap;font-size:12px;font-weight:700;color:var(--tp)}
 .dlpc{display:table-cell;vertical-align:middle;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap}
-.dlac{display:table-cell;vertical-align:middle;font-size:11px;font-weight:600;color:var(--ts);padding-left:10px;text-align:right;white-space:nowrap}
-.sec-title{font-size:12px;font-weight:700;color:var(--ts);letter-spacing:.4px;padding:0 20px 8px}
-.cat-card{background:var(--card);border-radius:14px;border:1px solid var(--bd);padding:12px 14px;margin:0 20px 8px;cursor:pointer;transition:transform .12s}
+.dlac{display:table-cell;vertical-align:middle;font-size:11px;font-weight:600;color:var(--ts);padding-left:8px;text-align:right;white-space:nowrap}
+.sec-title{font-size:12px;font-weight:700;color:var(--ts);letter-spacing:.4px;padding:0 18px 8px}
+.cat-card{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:11px 13px;margin:0 18px 7px;cursor:pointer;transition:transform .12s}
 .cat-card:hover{transform:translateX(2px)}
 .cat-top{display:flex;align-items:center;gap:10px}
 .cat-cdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.cat-main{flex:1;display:flex;align-items:baseline;gap:6px}
+.cat-main{flex:1;display:flex;align-items:baseline;gap:5px}
 .cat-name{font-size:14px;font-weight:700}
 .cat-cnt{font-size:11px;color:var(--ts);font-weight:600}
 .cat-right{text-align:right}
-.cat-amt{font-size:14px;font-weight:700;color:#d4859a}
+.cat-amt{font-size:14px;font-weight:700;color:#b07070}
 .cat-pct{font-size:11px;color:var(--ts);font-weight:600;margin-top:1px}
 .cat-bar-bg{margin-top:8px;background:var(--bg);border-radius:4px;height:4px}
 .cat-bar{height:4px;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1)}
 
-/* cat detail page */
-.cat-det-list{overflow-y:auto;flex:1;padding:0 20px 20px}
-
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════
    ASSET PAGE
-═══════════════════════════════════════ */
+══════════════════════════════════ */
 .asset-scroll{overflow-y:auto;flex:1}
-.hero{background:var(--card);padding:20px 20px 16px;border-bottom:1px solid var(--bd);text-align:center}
+.hero{background:var(--card);padding:20px 18px 16px;border-bottom:1px solid var(--bd);text-align:center}
 .hero-lbl{font-size:12px;color:var(--ts);font-weight:700;letter-spacing:.4px}
-.hero-amt{font-size:32px;font-weight:700;margin:6px 0 16px}
+.hero-amt{font-size:32px;font-weight:700;margin:5px 0 16px}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.hero-card{background:var(--bg);border-radius:14px;border:1px solid var(--bd);padding:11px 13px;text-align:left}
+.hero-card{background:var(--bg);border-radius:13px;border:1px solid var(--bd);padding:10px 13px;text-align:left}
 .hero-card-lbl{font-size:11px;color:var(--ts);font-weight:700}
 .hero-card-val{font-size:14px;font-weight:700;margin-top:3px}
-.acc-section{padding:0 20px;margin-top:10px}
-.acc-section-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 0 5px}
-.acc-section-title{font-size:12px;font-weight:700;color:var(--ts);letter-spacing:.4px}
-.acc-add-btn{font-size:12px;font-weight:700;color:var(--ts);background:var(--bg);border:1px solid var(--bd);border-radius:16px;padding:3px 11px;cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s}
-.acc-add-btn:hover{background:var(--pink);color:#fff;border-color:var(--pink)}
-.acc-item{background:var(--card);border-radius:14px;border:1px solid var(--bd);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:transform .12s}
+.acc-section{padding:0 18px;margin-top:10px}
+.acc-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 0 4px}
+.acc-hdr-title{font-size:11px;font-weight:700;color:var(--ts);letter-spacing:.4px}
+.acc-add-btn{font-size:12px;font-weight:700;color:var(--ts);background:var(--bg);border:1px solid var(--bd);border-radius:14px;padding:3px 10px;cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s}
+.acc-add-btn:hover{background:var(--m-stone);color:#fff;border-color:var(--m-stone)}
+.acc-item{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:transform .12s}
 .acc-item:hover{transform:translateX(2px)}
 .acc-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
 .acc-info{flex:1}
 .acc-name{font-size:14px;font-weight:700}
 .acc-sub{font-size:11px;color:var(--ts);font-weight:600;margin-top:1px}
 .acc-bal{font-size:14px;font-weight:700}
-
-/* acc detail */
-.det-hero{background:var(--card);padding:18px 20px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.det-hero{background:var(--card);padding:18px 18px 13px;border-bottom:1px solid var(--bd);flex-shrink:0}
 .det-hero-lbl{font-size:11px;color:var(--ts);font-weight:700;text-align:center}
 .det-hero-amt{font-size:28px;font-weight:700;text-align:center;margin:4px 0 12px}
 .det-sum-row{display:flex;gap:10px}
-.det-sum{flex:1;border-radius:14px;padding:10px 13px}
-.det-sum.out{background:var(--exp-grad);color:#fff}
-.det-sum.inn{background:var(--inc-grad);color:#fff}
-.det-sum-lbl{font-size:11px;opacity:.9;font-weight:600}
-.det-sum-val{font-size:15px;font-weight:700;margin-top:2px}
-.det-bal{text-align:center;padding:7px 0 0;font-size:12px;font-weight:700;color:var(--ts)}
+.det-sum{flex:1;border-radius:13px;padding:10px 13px}
+.det-sum.out{background:#fff5f5;border:1px solid rgba(224,80,80,0.15)}
+.det-sum.inn{background:#f5fff8;border:1px solid rgba(64,160,96,0.15)}
+.det-sum-lbl{font-size:11px;font-weight:600;color:var(--ts)}
+.det-sum-val{font-size:15px;font-weight:700;margin-top:2px;color:var(--tp)}
+.det-bal{text-align:center;padding:6px 0 0;font-size:12px;font-weight:700;color:var(--ts)}
 .det-tab-row{display:flex;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0}
 .det-tab{flex:1;padding:10px;font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;color:var(--ts);border-bottom:2px solid transparent;font-family:'Nunito',sans-serif}
-.det-tab.on{color:var(--tp);border-bottom-color:#d4a0c0}
-.det-list{overflow-y:auto;flex:1;padding:0 20px 20px}
-.det-chart-scroll{overflow-y:auto;flex:1;padding-bottom:20px}
+.det-tab.on{color:var(--tp);border-bottom-color:#f0a050}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════
    SETTINGS PAGE
-═══════════════════════════════════════ */
-.settings-scroll{overflow-y:auto;flex:1;padding:0 0 20px}
-.family-card{margin:14px 20px 0;background:linear-gradient(135deg,#f0b8d8,#c8b8f0,#a8d4f0);border-radius:20px;padding:18px;color:#fff;position:relative;overflow:hidden}
-.family-card::after{content:'';position:absolute;top:-30px;right:-30px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.12)}
-.family-name{font-size:18px;font-weight:700;margin-bottom:2px}
+══════════════════════════════════ */
+.settings-scroll{overflow-y:auto;flex:1;padding-bottom:20px}
+.family-card{margin:14px 18px 0;background:linear-gradient(135deg,#e0a060,#c88848,#a07830);border-radius:18px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.family-card::after{content:'';position:absolute;top:-28px;right:-28px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.12)}
+.family-name{font-size:17px;font-weight:700;margin-bottom:2px}
 .family-sub{font-size:12px;opacity:.85;font-weight:600}
 .family-members{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-.mem-bubble{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.25);border-radius:20px;padding:4px 10px}
-.mem-av-sm{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;background:rgba(255,255,255,.4)}
+.mem-bubble{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.22);border-radius:20px;padding:4px 10px}
+.mem-av-sm{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;background:rgba(255,255,255,.35)}
 .mem-nm-sm{font-size:12px;font-weight:700}
-.settings-section{padding:0 20px;margin-top:18px}
-.menu-icon{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.settings-sec{padding:0 18px;margin-top:18px}
+.menu-icon-box{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.menu-icon-box svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:currentColor}
 .toggle{width:44px;height:26px;border-radius:13px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
-.toggle::after{content:'';position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-.toggle.off{background:#e0e0e0}.toggle.off::after{left:3px}
-.toggle.on{background:var(--acc)}.toggle.on::after{left:21px}
-.mem-item{background:var(--card);border-radius:14px;border:1px solid var(--bd);padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .12s}
+.toggle::after{content:'';position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.toggle.off{background:#dedad6}.toggle.off::after{left:3px}
+.toggle.on{background:#90c060}.toggle.on::after{left:21px}
+.mem-item{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:11px 13px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .12s;margin-bottom:7px}
 .mem-item:hover{transform:translateX(2px)}
 .mem-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
 
-/* ═══════════════════════════════════════
-   EDIT / ADD RECORD (slide-up)
-═══════════════════════════════════════ */
-.rec-edit-page{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:30;flex-direction:column;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);overflow:hidden}
-.rec-edit-page.open{display:flex;transform:translateY(0)}
-.amt-section{padding:14px 20px 10px;flex-shrink:0;cursor:pointer}
-.amt-lbl{font-size:11px;color:var(--ts);font-weight:700;margin-bottom:4px}
-.amt-val{font-size:36px;font-weight:700;border-bottom:2px solid var(--bd);padding-bottom:8px;transition:border-color .15s}
-.amt-val.focused{border-bottom-color:#d4a0c0}
-.big-cat-tabs{display:flex;overflow-x:auto;padding:0 20px;gap:16px;flex-shrink:0;border-bottom:1px solid var(--bd);border-top:1px solid var(--bd);scrollbar-width:none}
-.big-cat-tabs::-webkit-scrollbar{display:none}
-.big-cat-tab{font-size:13px;font-weight:700;color:var(--ts);white-space:nowrap;padding:10px 0;border-bottom:2.5px solid transparent;cursor:pointer;flex-shrink:0;transition:all .15s}
-.big-cat-tab.on{color:var(--tp);border-bottom-color:#d4a0c0}
-.sub-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px;padding:10px 20px;overflow-y:auto;flex:1;align-content:start}
-.sub-cat-item{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
-.sub-cat-circle{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2.5px solid transparent;transition:all .2s}
-.sub-cat-circle.on{border-color:rgba(0,0,0,.18);transform:scale(1.08)}
-.sub-cat-name{font-size:11px;font-weight:700;color:var(--ts);text-align:center;transition:color .15s}
-.sub-cat-item.on .sub-cat-name{color:var(--tp)}
-.edit-fields{flex-shrink:0;padding:0 20px;display:flex;flex-direction:column;gap:8px}
-.xfr-form{flex:1;overflow-y:auto;padding:12px 20px;display:none;flex-direction:column;gap:10px}
-.xfr-form.show{display:flex}
-.xfr-lbl{font-size:11px;font-weight:700;color:var(--ts)}
-.xfr-arrow-row{display:flex;align-items:center;gap:8px}
-.xfr-field{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 14px}
-.xfr-field select{width:100%;border:none;background:none;font-size:14px;color:var(--tp);font-family:'Nunito',sans-serif;outline:none;font-weight:600}
-.xfr-arr{font-size:18px;color:var(--ts);flex-shrink:0}
+/* ══════════════════════════════════
+   ADD / SLIDE-UP PAGE
+══════════════════════════════════ */
+.slide-up-page{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:30;flex-direction:column;transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);overflow:hidden}
+.slide-up-page.open{display:flex;transform:translateY(0)}
 
-/* keyboard */
-.kb-backdrop{position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;display:none}
-.kb-backdrop.open{display:block}
-.kb-panel{position:absolute;bottom:0;left:0;width:100%;background:var(--card);border-top:1px solid var(--bd);border-radius:18px 18px 0 0;z-index:101;padding:10px 12px 24px;display:none}
-.kb-panel.open{display:block}
+/* ══════════════════════════════════
+   KEYBOARD
+══════════════════════════════════ */
+.kb-overlay{position:absolute;bottom:0;left:0;width:100%;background:var(--card);border-top:1px solid var(--bd);border-radius:18px 18px 0 0;z-index:50;padding:10px 12px 22px;display:none}
+.kb-overlay.open{display:block}
 .kb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .kb-btn{padding:15px 8px;border-radius:12px;border:none;background:var(--bg);font-size:18px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--tp);transition:background .1s}
-.kb-btn:active{background:#e0e0e0}
-.kb-btn.ka{background:#ede8f0;color:#9070a0}
-.kb-btn.kc{background:var(--acc);color:#fff;font-size:15px}
+.kb-btn:active{background:#dedad4}
+.kb-btn.ka{background:#ede8e2;color:#7a7060}
+.kb-btn.kc{background:var(--g-acc);color:#fff;font-size:14px}
 .kb-btn.kz{grid-column:span 2}
 </style>
 </head>
 <body>
 <div class="app" id="app">
 
-<!-- ═══════ RECORDS PAGE ═══════ -->
+<!-- ══ RECORDS PAGE ══ -->
 <div class="page active" id="pg-records">
   <div class="nav">
-    <div style="display:flex;align-items:center;gap:8px">
-      <button class="ib" onclick="chgMonth(-1)">‹</button>
-      <span style="font-size:14px;font-weight:700" id="month-lbl">2026-03</span>
-      <button class="ib" onclick="chgMonth(1)">›</button>
+    <div class="month-nav">
+      <button class="month-arr" onclick="chgMonth(-1)">‹</button>
+      <button class="month-btn" onclick="openMonthPicker()" id="month-lbl">2026-03</button>
+      <button class="month-arr" onclick="chgMonth(1)">›</button>
     </div>
-    <button class="ib" onclick="chgMonth(0)" title="回本月">↺</button>
+    <div style="display:flex;align-items:center;gap:4px">
+      <span class="fb-status err" id="fb-status">離線</span>
+      <button class="ib" onclick="chgMonth(0)">↺</button>
+    </div>
   </div>
   <div class="summary-row">
     <div class="sum-card exp"><div class="sum-lbl">支出</div><div class="sum-amt" id="tot-exp">NT$0</div></div>
     <div class="sum-card inc"><div class="sum-lbl">收入</div><div class="sum-amt" id="tot-inc">NT$0</div></div>
+    <div class="sum-card exp" style="border:1px solid var(--bd);background:var(--card)"><div class="sum-lbl">結餘</div><div class="sum-amt" id="bal-val">NT$0</div></div>
   </div>
-  <div class="bal-row">結餘：<span id="bal-val">NT$0</span></div>
   <div class="tab-row">
     <button class="tab-btn on" onclick="setRTab(this,'all')">全部</button>
     <button class="tab-btn" onclick="setRTab(this,'exp')">支出</button>
     <button class="tab-btn" onclick="setRTab(this,'inc')">收入</button>
     <button class="tab-btn" onclick="setRTab(this,'xfr')">轉帳</button>
   </div>
-  <div class="tx-list" id="tx-list"></div>
-
-  <!-- Edit record sub-page -->
+  <div class="rec-scroll" id="rec-scroll">
+    <div class="cal-wrap">
+      <div class="cal-weekrow">
+        <div class="cal-weekday">日</div><div class="cal-weekday">一</div><div class="cal-weekday">二</div>
+        <div class="cal-weekday">三</div><div class="cal-weekday">四</div><div class="cal-weekday">五</div><div class="cal-weekday">六</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div class="sel-bar" id="sel-bar">
+      <span class="sel-bar-txt" id="sel-bar-txt"></span>
+      <button class="sel-bar-clr" onclick="clearSelDate()">顯示全月 ✕</button>
+    </div>
+    <div style="padding:0 16px" id="tx-list"></div>
+  </div>
+  <!-- Edit record -->
   <div class="sub-page" id="sp-rec-edit">
     <div class="nav">
-      <div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-rec-edit')">‹</div>
+      <button class="ib" onclick="closeSP('sp-rec-edit')">‹</button>
       <span class="nav-title">編輯記錄</span>
-      <div class="ib del-ib" style="cursor:pointer" onclick="deleteRec()">✕</div>
+      <button class="ib danger" onclick="deleteRec('sp-rec-edit')">✕</button>
     </div>
     <div id="re-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
+    <div class="kb-overlay" id="kb-re"></div>
   </div>
 </div>
 
-<!-- ═══════ CHART PAGE ═══════ -->
+<!-- ══ CHART PAGE ══ -->
 <div class="page" id="pg-chart">
   <div class="nav">
-    <div style="display:flex;align-items:center;gap:8px">
-      <button class="ib" onclick="chgMonth(-1)">‹</button>
-      <span style="font-size:14px;font-weight:700" id="chart-month-lbl">2026-03</span>
-      <button class="ib" onclick="chgMonth(1)">›</button>
+    <div class="month-nav">
+      <button class="month-arr" onclick="chgMonth(-1)">‹</button>
+      <button class="month-btn" onclick="openMonthPicker()" id="chart-month-lbl">2026-03</button>
+      <button class="month-arr" onclick="chgMonth(1)">›</button>
     </div>
     <span class="nav-title">圖表分析</span>
   </div>
-  <div class="chart-page-scroll" id="chart-scroll">
-    <div style="display:flex;gap:8px;padding:12px 20px 0">
-      <button class="type-tog on-exp" id="ct-exp" onclick="setChartType('exp')" style="flex:1;padding:9px;border-radius:14px;border:1.5px solid var(--bd);font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif">支出</button>
-      <button class="type-tog" id="ct-inc" onclick="setChartType('inc')" style="flex:1;padding:9px;border-radius:14px;border:1.5px solid var(--bd);font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--ts);background:var(--bg)">收入</button>
+  <div class="chart-scroll">
+    <div style="display:flex;gap:8px;padding:12px 18px 0">
+      <button class="type-seg-btn on-exp" id="ct-exp" onclick="setChartType('exp')" style="flex:1;border-radius:13px;border:1px solid var(--bd)">支出</button>
+      <button class="type-seg-btn" id="ct-inc" onclick="setChartType('inc')" style="flex:1;border-radius:13px;border:1px solid var(--bd);color:var(--ts);background:var(--bg)">收入</button>
     </div>
     <div class="stats-row" id="chart-stats"></div>
-    <div class="donut-section">
+    <div class="donut-sec">
       <div class="donut-inner">
-        <div class="donut-wrap"><canvas id="donut-canvas" width="140" height="140"></canvas><div class="donut-center"><div class="donut-center-lbl">合計</div><div class="donut-center-val" id="donut-total">NT$0</div></div></div>
-        <table class="donut-legend" id="donut-legend"></table>
+        <div class="donut-wrap"><canvas id="donut-canvas" width="140" height="140"></canvas><div class="donut-center"><div class="donut-cl">合計</div><div class="donut-cv" id="donut-total">NT$0</div></div></div>
+        <table class="dleg" id="donut-legend"></table>
       </div>
     </div>
     <div class="sec-title">明細分類</div>
     <div id="chart-cat-list"></div>
   </div>
-
   <!-- Cat detail -->
   <div class="sub-page" id="sp-cat-det">
-    <div class="nav">
-      <div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-cat-det')">‹</div>
-      <span class="nav-title" id="cat-det-title">類別</span>
-      <div style="width:34px"></div>
-    </div>
-    <div class="cat-det-list" id="cat-det-list"></div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-cat-det')">‹</button><span class="nav-title" id="cat-det-title">類別</span><div style="width:32px"></div></div>
+    <div style="overflow-y:auto;flex:1;padding:0 18px 20px" id="cat-det-list"></div>
+  </div>
+  <!-- Chart rec edit -->
+  <div class="sub-page" id="sp-chart-rec-edit">
+    <div class="nav"><button class="ib" onclick="closeSP('sp-chart-rec-edit')">‹</button><span class="nav-title">編輯記錄</span><button class="ib danger" onclick="deleteRec('sp-chart-rec-edit')">✕</button></div>
+    <div id="cre-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
+    <div class="kb-overlay" id="kb-cre"></div>
   </div>
 </div>
 
-<!-- ═══════ ASSET PAGE ═══════ -->
+<!-- ══ ASSET PAGE ══ -->
 <div class="page" id="pg-asset">
-  <div class="nav">
-    <span class="nav-title">資產</span>
-    <button class="ib" onclick="openAccEdit(null)" title="新增帳戶">+</button>
-  </div>
+  <div class="nav"><span class="nav-title">資產</span><button class="ib" onclick="openAccEdit(null)">+</button></div>
   <div class="asset-scroll">
     <div class="hero">
       <div class="hero-lbl">淨資產</div>
       <div class="hero-amt" id="net-amt">NT$0</div>
       <div class="hero-grid">
-        <div class="hero-card"><div class="hero-card-lbl">可支配</div><div class="hero-card-val" id="asset-disp" style="color:#85c4aa">NT$0</div></div>
-        <div class="hero-card"><div class="hero-card-lbl">負債</div><div class="hero-card-val" id="asset-liab" style="color:#d4859a">NT$0</div></div>
+        <div class="hero-card"><div class="hero-card-lbl">可支配</div><div class="hero-card-val" id="asset-disp" style="color:#6a9a6a">NT$0</div></div>
+        <div class="hero-card"><div class="hero-card-lbl">負債</div><div class="hero-card-val" id="asset-liab" style="color:#b07070">NT$0</div></div>
         <div class="hero-card"><div class="hero-card-lbl">借出</div><div class="hero-card-val" style="color:var(--ts)">NT$0</div></div>
         <div class="hero-card"><div class="hero-card-lbl">借入</div><div class="hero-card-val" style="color:var(--ts)">NT$0</div></div>
       </div>
     </div>
     <div id="acc-list"></div>
+    <div style="height:16px"></div>
   </div>
-
   <!-- Acc detail -->
   <div class="sub-page" id="sp-acc-det">
-    <div class="nav">
-      <div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-acc-det')">‹</div>
-      <span class="nav-title" id="acc-det-title">帳戶</span>
-      <div class="ib" style="cursor:pointer" onclick="openAccEditFromDet()">⋯</div>
-    </div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-acc-det')">‹</button><span class="nav-title" id="acc-det-title">帳戶</span><button class="ib" onclick="openAccEditFromDet()">⋯</button></div>
     <div class="det-hero">
       <div class="det-hero-lbl">帳戶餘額</div>
       <div class="det-hero-amt" id="acc-det-amt">NT$0</div>
@@ -368,32 +494,23 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="det-bal">結餘：<span id="acc-det-bal">NT$0</span></div>
     </div>
     <div class="det-tab-row">
-      <button class="det-tab on" onclick="setAccDetTab('tx',this)">交易記錄</button>
-      <button class="det-tab" onclick="setAccDetTab('chart',this)">圖表分析</button>
+      <button class="det-tab on" id="dtt-tx" onclick="setAccDetTab('tx',this)">交易記錄</button>
+      <button class="det-tab" id="dtt-chart" onclick="setAccDetTab('chart',this)">圖表分析</button>
     </div>
-    <div class="det-list" id="acc-det-list"></div>
-    <div class="det-chart-scroll" id="acc-det-chart" style="display:none"></div>
-
-    <!-- Acc rec edit -->
-    <div class="sub-page" id="sp-acc-rec-edit">
-      <div class="nav">
-        <div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-acc-rec-edit')">‹</div>
-        <span class="nav-title">編輯記錄</span>
-        <div class="ib del-ib" style="cursor:pointer" onclick="deleteAccRec()">✕</div>
-      </div>
-      <div id="are-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
-    </div>
+    <div style="overflow-y:auto;flex:1;padding:0 18px 20px" id="acc-det-list"></div>
+    <div style="overflow-y:auto;flex:1;display:none;padding-bottom:20px" id="acc-det-chart"></div>
   </div>
-
+  <!-- Acc rec edit - sibling of sp-acc-det, higher z-index -->
+  <div class="sub-page" id="sp-acc-rec-edit" style="z-index:26">
+    <div class="nav"><button class="ib" onclick="closeSP('sp-acc-rec-edit')">‹</button><span class="nav-title">編輯記錄</span><button class="ib danger" onclick="deleteRec('sp-acc-rec-edit')">✕</button></div>
+    <div id="are-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
+    <div class="kb-overlay" id="kb-are"></div>
+  </div>
   <!-- Acc edit -->
   <div class="sub-page" id="sp-acc-edit">
-    <div class="nav">
-      <div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-acc-edit')">‹</div>
-      <span class="nav-title" id="acc-edit-title">新增帳戶</span>
-      <div class="ib del-ib" id="acc-del-btn" style="cursor:pointer;display:none" onclick="deleteAcc()">✕</div>
-    </div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-acc-edit')">‹</button><span class="nav-title" id="acc-edit-title">新增帳戶</span><button class="ib danger" id="acc-del-btn" style="display:none" onclick="deleteAcc()">✕</button></div>
     <div class="sub-body">
-      <div><div class="section-lbl">顏色</div><div class="color-swatches" id="acc-colors"></div></div>
+      <div><div class="sec-lbl" style="margin-bottom:6px">顏色</div><div class="color-swatches" id="acc-colors"></div></div>
       <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="acc-name" placeholder="例：聆的現金"/></div>
       <div class="ef-row"><span class="ef-label">類型</span><select class="ef-select" id="acc-type"><option value="cash">現金</option><option value="bank">銀行帳戶</option><option value="card">信用卡</option><option value="wallet">電子錢包</option><option value="virtual">虛擬帳戶</option></select></div>
       <div class="ef-row"><span class="ef-label">所屬</span><select class="ef-select" id="acc-owner"></select></div>
@@ -403,7 +520,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
   </div>
 </div>
 
-<!-- ═══════ SETTINGS PAGE ═══════ -->
+<!-- ══ SETTINGS PAGE ══ -->
 <div class="page" id="pg-settings">
   <div class="nav"><span class="nav-title">更多</span></div>
   <div class="settings-scroll">
@@ -412,68 +529,88 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="family-sub">共同記帳</div>
       <div class="family-members" id="family-members"></div>
     </div>
-    <div class="settings-section">
-      <div class="section-lbl" style="margin-top:0;margin-bottom:8px">管理</div>
+    <div class="settings-sec" style="margin-top:18px">
+      <div class="sec-lbl" style="margin-bottom:8px">管理</div>
       <div class="menu-group">
-        <div class="menu-item" onclick="openSP('sp-members')"><div class="menu-icon" style="background:#f5b8c433;font-size:15px">👥</div><div style="flex:1"><div class="menu-label">成員管理</div><div class="menu-sub" id="member-hint"></div></div><span class="arrow">›</span></div>
-        <div class="menu-item" onclick="openSP('sp-cats')"><div class="menu-icon" style="background:#b0e0cc33;font-size:15px">🏷</div><div style="flex:1"><div class="menu-label">分類設定</div><div class="menu-sub">支出、收入類別</div></div><span class="arrow">›</span></div>
-        <div class="menu-item" onclick="openSP('sp-settle')"><div class="menu-icon" style="background:#a8d4f033;font-size:15px">⇄</div><div style="flex:1"><div class="menu-label">成員分帳結算</div></div><span class="arrow">›</span></div>
+        <div class="menu-item" onclick="openSettingsSP('sp-members');renderMemList()">
+          <div class="menu-icon-box" style="background:#b8a99a22;color:var(--m-stone)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">成員管理</div><div class="menu-sub" id="member-hint"></div></div><span class="arrow">›</span>
+        </div>
+        <div class="menu-item" onclick="openSettingsSP('sp-cats');renderCats()">
+          <div class="menu-icon-box" style="background:#9aad9e22;color:var(--m-sage)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">分類設定</div><div class="menu-sub">支出、收入類別</div></div><span class="arrow">›</span>
+        </div>
+        <div class="menu-item" onclick="openSettingsSP('sp-settle');renderSettle()">
+          <div class="menu-icon-box" style="background:#92a3b022;color:var(--m-slate)"><svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">成員分帳結算</div></div><span class="arrow">›</span>
+        </div>
       </div>
     </div>
-    <div class="settings-section">
-      <div class="section-lbl" style="margin-bottom:8px">偏好設定</div>
+    <div class="settings-sec">
+      <div class="sec-lbl" style="margin-bottom:8px">偏好設定</div>
       <div class="menu-group">
-        <div class="menu-item"><div class="menu-icon" style="background:#f5c8a033;font-size:15px">💰</div><div style="flex:1"><div class="menu-label">預設貨幣</div></div><span style="font-size:12px;font-weight:700;color:var(--ts);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:2px 8px">NT$</span></div>
-        <div class="menu-item"><div class="menu-icon" style="background:#c0d8b033;font-size:15px">📅</div><div style="flex:1"><div class="menu-label">每月起始日</div></div><span style="font-size:12px;font-weight:700;color:var(--ts);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:2px 8px">1 日</span></div>
-        <div class="menu-item"><div class="menu-icon" style="background:#d8c8f033;font-size:15px">🌙</div><div style="flex:1"><div class="menu-label">深色模式</div></div><button class="toggle off" id="dark-tog" onclick="this.className='toggle '+(this.className.includes('off')?'on':'off')"></button></div>
+        <div class="menu-item">
+          <div class="menu-icon-box" style="background:#ada59222;color:var(--m-khaki)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">每月起始日</div></div><span style="font-size:12px;font-weight:700;color:var(--ts);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:2px 8px">1 日</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon-box" style="background:#9e96b022;color:var(--m-lav)"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">深色模式</div></div>
+          <button class="toggle off" id="dark-tog" onclick="this.className='toggle '+(this.className.includes('off')?'on':'off')"></button>
+        </div>
       </div>
     </div>
-    <div class="settings-section">
-      <div class="section-lbl" style="margin-bottom:8px">資料</div>
+    <div class="settings-sec">
+      <div class="sec-lbl" style="margin-bottom:8px">資料</div>
       <div class="menu-group">
-        <div class="menu-item"><div class="menu-icon" style="background:#f0c4b033;font-size:15px">↓</div><div style="flex:1"><div class="menu-label">匯出資料</div><div class="menu-sub">串接 Firebase 後啟用</div></div><span class="arrow">›</span></div>
-        <div class="menu-item"><div class="menu-icon" style="background:#b0e0cc33;font-size:15px">☁</div><div style="flex:1"><div class="menu-label">雲端同步</div><div class="menu-sub">Firebase 即時同步</div></div><span style="font-size:12px;font-weight:700;color:#85c4aa">已連線</span></div>
+        <div class="menu-item">
+          <div class="menu-icon-box" style="background:#93aaa822;color:var(--m-teal)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">匯出資料</div><div class="menu-sub">CSV / Excel</div></div><span class="arrow">›</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon-box" style="background:#9aad9e22;color:var(--m-sage)"><svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg></div>
+          <div style="flex:1"><div class="menu-lbl">雲端同步</div><div class="menu-sub">Firebase</div></div>
+          <span id="fb-status-settings" class="fb-status err">離線</span>
+        </div>
       </div>
     </div>
     <div style="text-align:center;padding:20px;font-size:12px;color:var(--ts);font-weight:600">v1.0.0</div>
   </div>
-
   <!-- Members -->
   <div class="sub-page" id="sp-members">
-    <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-members')">‹</div><span class="nav-title">成員管理</span><div class="ib" style="cursor:pointer" onclick="openMemEdit(null)">+</div></div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-members')">‹</button><span class="nav-title">成員管理</span><button class="ib" onclick="openMemEdit(null)">+</button></div>
     <div class="sub-body" id="mem-list"></div>
     <div class="sub-page" id="sp-mem-edit">
-      <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-mem-edit')">‹</div><span class="nav-title" id="mem-edit-title">新增成員</span><div class="ib del-ib" id="mem-del-btn" style="cursor:pointer;display:none" onclick="deleteMem()">✕</div></div>
+      <div class="nav"><button class="ib" onclick="closeSP('sp-mem-edit')">‹</button><span class="nav-title" id="mem-edit-title">新增成員</span><button class="ib danger" id="mem-del-btn" style="display:none" onclick="deleteMem()">✕</button></div>
       <div class="sub-body">
         <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="mem-name" placeholder="成員名稱"/></div>
-        <div><div class="section-lbl" style="margin-bottom:6px">顏色</div><div class="color-swatches" id="mem-colors"></div></div>
+        <div><div class="sec-lbl" style="margin-bottom:6px">顏色</div><div class="color-swatches" id="mem-colors"></div></div>
         <div class="save-wrap"><button class="btn-save" onclick="saveMem()">儲存</button></div>
       </div>
     </div>
   </div>
-
-  <!-- Categories -->
+  <!-- Cats -->
   <div class="sub-page" id="sp-cats">
-    <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-cats')">‹</div><span class="nav-title">分類設定</span></div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-cats')">‹</button><span class="nav-title">分類設定</span></div>
     <div class="sub-body">
-      <div class="section-lbl">支出類別</div>
+      <div class="sec-lbl">支出類別</div>
       <div class="menu-group" id="exp-cat-list"></div>
-      <button class="add-row" onclick="openBigCatEdit('exp',null)" style="margin-top:4px">+ 新增支出大類</button>
-      <div class="section-lbl" style="margin-top:16px">收入類別</div>
+      <button class="add-row" onclick="openBigCatEdit('exp',null)">+ 新增支出大類</button>
+      <div class="sec-lbl" style="margin-top:12px">收入類別</div>
       <div class="menu-group" id="inc-cat-list"></div>
-      <button class="add-row" onclick="openBigCatEdit('inc',null)" style="margin-top:4px">+ 新增收入大類</button>
+      <button class="add-row" onclick="openBigCatEdit('inc',null)">+ 新增收入大類</button>
     </div>
     <div class="sub-page" id="sp-bigcat-edit">
-      <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-bigcat-edit')">‹</div><span class="nav-title" id="bigcat-edit-title">大類設定</span><div class="ib del-ib" id="bigcat-del-btn" style="cursor:pointer;display:none" onclick="deleteBigCat()">✕</div></div>
+      <div class="nav"><button class="ib" onclick="closeSP('sp-bigcat-edit')">‹</button><span class="nav-title" id="bigcat-edit-title">大類設定</span><button class="ib danger" id="bigcat-del-btn" style="display:none" onclick="deleteBigCat()">✕</button></div>
       <div class="sub-body">
         <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="bigcat-name" placeholder="大類名稱" maxlength="8"/></div>
         <div class="save-wrap" style="padding:4px 0 12px"><button class="btn-save" onclick="saveBigCatName()">儲存名稱</button></div>
-        <div class="section-lbl">子分類</div>
+        <div class="sec-lbl">子分類</div>
         <div class="tag-grid" id="sub-tags"></div>
         <div class="add-tag-row"><input id="new-sub" placeholder="新增子分類" maxlength="10"/><button class="add-tag-btn" onclick="addSubCat()">新增</button></div>
       </div>
       <div class="sub-page" id="sp-subcat-edit">
-        <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-subcat-edit')">‹</div><span class="nav-title">編輯子分類</span><div class="ib del-ib" style="cursor:pointer" onclick="deleteSubCat()">✕</div></div>
+        <div class="nav"><button class="ib" onclick="closeSP('sp-subcat-edit')">‹</button><span class="nav-title">編輯子分類</span><button class="ib danger" onclick="deleteSubCat()">✕</button></div>
         <div class="sub-body">
           <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="subcat-name" placeholder="子分類名稱" maxlength="10"/></div>
           <div class="save-wrap"><button class="btn-save" onclick="saveSubCat()">儲存</button></div>
@@ -481,30 +618,26 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       </div>
     </div>
   </div>
-
   <!-- Settle -->
   <div class="sub-page" id="sp-settle">
-    <div class="nav"><div class="ib" style="cursor:pointer" onclick="closeSubPage('sp-settle')">‹</div><span class="nav-title">成員分帳結算</span></div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-settle')">‹</button><span class="nav-title">成員分帳結算</span></div>
     <div class="sub-body" id="settle-body"></div>
   </div>
 </div>
 
-<!-- ═══════ ADD RECORD (slide up from bottom) ═══════ -->
-<div class="rec-edit-page" id="pg-add">
+<!-- ══ ADD RECORD ══ -->
+<div class="slide-up-page" id="pg-add">
   <div class="nav">
-    <div style="display:flex;align-items:center;gap:10px"><div class="ib" style="cursor:pointer" onclick="closeAdd()">✕</div><span class="nav-title">記帳</span></div>
-    <button style="background:var(--acc);color:#fff;border:none;font-size:13px;font-weight:700;padding:0 16px;border-radius:20px;height:34px;cursor:pointer;font-family:'Nunito',sans-serif" onclick="saveNewRec()">儲存</button>
+    <div style="display:flex;align-items:center;gap:8px"><button class="ib" onclick="closeAdd()">✕</button><span class="nav-title">記帳</span></div>
+    <button style="background:var(--g-acc);color:#fff;border:none;font-size:13px;font-weight:700;padding:0 16px;border-radius:20px;height:32px;cursor:pointer;font-family:'Nunito',sans-serif" onclick="saveNewRec()">儲存</button>
   </div>
-  <div class="type-toggle" style="margin:12px 20px 0">
-    <button class="type-tog on-exp" id="add-tt-exp" onclick="setAddType('exp')">支出</button>
-    <button class="type-tog" id="add-tt-inc" onclick="setAddType('inc')">收入</button>
-    <button class="type-tog" id="add-tt-xfr" onclick="setAddType('xfr')">轉帳</button>
+  <div class="type-seg" style="margin:12px 18px 0">
+    <button class="type-seg-btn on-exp" id="add-tt-exp" onclick="setAddType('exp')">支出</button>
+    <button class="type-seg-btn" id="add-tt-inc" onclick="setAddType('inc')">收入</button>
+    <button class="type-seg-btn" id="add-tt-xfr" onclick="setAddType('xfr')">轉帳</button>
   </div>
   <div id="add-normal" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
-    <div class="amt-section" onclick="openKb('add')">
-      <div class="amt-lbl">金額（NT$）</div>
-      <div class="amt-val" id="add-amt-val">0</div>
-    </div>
+    <div class="amt-section" onclick="openKb('add')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="add-amt-val">0</div></div>
     <div class="big-cat-tabs" id="add-big-tabs"></div>
     <div class="sub-cat-grid" id="add-sub-grid"></div>
     <div class="edit-fields">
@@ -513,7 +646,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="add-payer"></select></div>
       <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="add-acc"></select></div>
     </div>
-    <div style="padding:10px 20px 20px"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
+    <div style="padding:10px 18px 16px"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
   </div>
   <div class="xfr-form" id="add-xfr">
     <div class="amt-section" style="padding:0 0 10px" onclick="openKb('add')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="add-xamt-val">0</div></div>
@@ -524,65 +657,74 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
     <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="add-xnote" type="text" placeholder="選填"/></div>
     <div style="padding:10px 0 0"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
   </div>
+  <div class="kb-overlay" id="kb-add"></div>
 </div>
 
-<!-- Keyboard -->
-<div class="kb-backdrop" id="kb-backdrop" onclick="closeKb()"></div>
-<div class="kb-panel" id="kb-panel">
-  <div class="kb-grid">
-    <button class="kb-btn" onclick="kp('7')">7</button><button class="kb-btn" onclick="kp('8')">8</button><button class="kb-btn" onclick="kp('9')">9</button><button class="kb-btn ka" onclick="kp('del')">⌫</button>
-    <button class="kb-btn" onclick="kp('4')">4</button><button class="kb-btn" onclick="kp('5')">5</button><button class="kb-btn" onclick="kp('6')">6</button><button class="kb-btn ka" onclick="kp('.')">.</button>
-    <button class="kb-btn" onclick="kp('1')">1</button><button class="kb-btn" onclick="kp('2')">2</button><button class="kb-btn" onclick="kp('3')">3</button><button class="kb-btn ka" onclick="kp('00')">00</button>
-    <button class="kb-btn kz" onclick="kp('0')">0</button><button class="kb-btn kc" onclick="closeKb()">確定</button>
+<!-- ══ MONTH PICKER ══ -->
+<div class="month-picker-overlay" id="month-picker-overlay" onclick="closeMonthPicker(event)">
+  <div class="month-picker">
+    <div class="mp-header">
+      <div class="mp-year-nav">
+        <button class="ib" onclick="chgPickYear(-1)">‹</button>
+        <span class="mp-year" id="mp-year">2026</span>
+        <button class="ib" onclick="chgPickYear(1)">›</button>
+      </div>
+      <button class="ib" onclick="closeMonthPicker()">✕</button>
+    </div>
+    <div class="mp-grid" id="mp-grid"></div>
   </div>
 </div>
 
-<!-- Bottom Nav -->
+<!-- ══ BOTTOM NAV ══ -->
 <nav class="bottom-nav">
   <button class="nav-item on" id="nav-records" onclick="switchPage('records')">
-    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-    記錄
+    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>記錄
   </button>
   <button class="nav-item" id="nav-chart" onclick="switchPage('chart')">
-    <svg viewBox="0 0 24 24"><path d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
-    圖表
+    <svg viewBox="0 0 24 24"><path d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>圖表
   </button>
   <div class="nav-center">
-    <button class="fab" onclick="openAdd()">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
+    <button class="fab" onclick="openAdd()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
   </div>
   <button class="nav-item" id="nav-asset" onclick="switchPage('asset')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.8 9A2 2 0 0013 8h-2a2 2 0 000 4h2a2 2 0 010 4h-2a2 2 0 01-1.8-1M12 7v1m0 8v1"/></svg>
-    資產
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.8 9A2 2 0 0013 8h-2a2 2 0 000 4h2a2 2 0 010 4h-2a2 2 0 01-1.8-1M12 7v1m0 8v1"/></svg>資產
   </button>
   <button class="nav-item" id="nav-settings" onclick="switchPage('settings')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-    更多
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>更多
   </button>
 </nav>
-
-</div><!-- end app -->
+</div>
 
 <script>
-// ═══════════════════════════════════════
-// DATA
-// ═══════════════════════════════════════
-const PAL=['#f5b8c4','#f5c8a0','#b0e0cc','#a8d4f0','#c8b8f0','#f0b8d8','#c0d8b0','#f0c4b0','#d8c8f0','#f5e6a0','#b8e0f0','#888'];
-const MACARON=['#f5b8c4','#f5c8a0','#b0e0cc','#a8d4f0','#c8b8f0','#f0b8d8','#c0d8b0','#f0c4b0','#d8c8f0','#f5e6a0','#b8e0f0'];
-const CAT_COL={'吃喝':'#f5b8c4','交通':'#a8d4f0','固定':'#c8b8f0','代購':'#f5c8a0','醫療':'#f0b8d8','教育':'#b0e0cc','其他':'#d8c8f0','生活':'#c0d8b0','寵物':'#b8e0f0','娛樂':'#f0c4b0','回饋':'#f5e6a0','正職':'#b0e0cc','額外':'#f5c8a0','兼職':'#a8d4f0','投資':'#c8b8f0'};
+/* ══════════════════════════════════
+   MORANDI CAT COLORS
+══════════════════════════════════ */
+const CAT_COL={
+  '吃喝':'#f0a050','交通':'#70b060','固定':'#5090d0','代購':'#e8b040',
+  '醫療':'#d06090','教育':'#50b890','其他':'#9898c8','生活':'#a0c858',
+  '寵物':'#e87050','娛樂':'#7090d0','回饋':'#90c878',
+  '正職':'#50b890','額外':'#e8b040','兼職':'#5090d0','投資':'#9898c8'
+};
+const PAL=['#f0a050','#e8c840','#90c060','#50b890','#5090d0','#a070c8','#e87050','#d06090','#7090d0','#a0c858','#9898c8','#b8a890'];
 const ACC_TYPE_LBL={cash:'現金',bank:'銀行帳戶',card:'信用卡',wallet:'電子錢包',virtual:'虛擬帳戶'};
-const TRANSFERS=[{fromMem:'聆',toMem:'皮皮',amount:15000},{fromMem:'皮皮',toMem:'聆',amount:1000}];
+const MONTHS=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-let members=[{name:'聆',color:'#a8d4f0'},{name:'皮皮',color:'#f5b8c4'},{name:'蹦蹦',color:'#b0e0cc'},{name:'跳跳',color:'#c8b8f0'},{name:'妹妹',color:'#f5c8a0'},{name:'家',color:'#888'}];
+/* ══════════════════════════════════
+   STATE
+══════════════════════════════════ */
+let members=[
+  {name:'聆',color:'#92a3b0'},{name:'皮皮',color:'#b8a99a'},
+  {name:'蹦蹦',color:'#9aad9e'},{name:'跳跳',color:'#9e96b0'},
+  {name:'妹妹',color:'#ada592'},{name:'家',color:'#9e9890'},
+];
 let accounts=[
-  {name:'聆的現金',type:'cash',owner:'聆',balance:5200,color:'#b0e0cc'},
-  {name:'皮的現金',type:'cash',owner:'皮皮',balance:5186,color:'#f5b8c4'},
-  {name:'台新',type:'bank',owner:'聆',balance:2028,color:'#a8d4f0'},
-  {name:'台新R',type:'bank',owner:'聆',balance:34585,color:'#a8d4f0'},
-  {name:'中信',type:'bank',owner:'聆',balance:982,color:'#c8b8f0'},
-  {name:'台新黑狗',type:'card',owner:'皮皮',balance:-35049,color:'#5a6272'},
-  {name:'街口',type:'wallet',owner:'聆',balance:3185,color:'#f5c8a0'},
+  {name:'聆的現金',type:'cash',owner:'聆',balance:5200,color:'#9aad9e'},
+  {name:'皮的現金',type:'cash',owner:'皮皮',balance:5186,color:'#b8a99a'},
+  {name:'台新',type:'bank',owner:'聆',balance:2028,color:'#92a3b0'},
+  {name:'台新R',type:'bank',owner:'聆',balance:34585,color:'#92a3b0'},
+  {name:'中信',type:'bank',owner:'聆',balance:982,color:'#9e96b0'},
+  {name:'台新黑狗',type:'card',owner:'皮皮',balance:-35049,color:'#8a8a8a'},
+  {name:'街口',type:'wallet',owner:'聆',balance:3185,color:'#ada592'},
 ];
 let CATS={
   exp:{'吃喝':['早餐','午餐','晚餐','宵夜','飲料','點心','食材','水果','酒'],'交通':['加油','eTag','停車','捷運','公車','火車','高鐵','計程車','保養','維修'],'生活':['清潔','3C用品','服飾','廚房','寢具','日用品'],'醫療':['掛號','藥-吃','藥-擦','預防針','其他'],'教育':['補習','書籍','課程','軟體'],'娛樂':['遊戲','門票','電影票','會員','訂閱'],'固定':['管理費','電費','水費','天然氣','網路','貸款','租金','電話費','汽車清潔','機車清潔'],'代購':['商品','運費','手續費','稅金','儲值','換匯'],'寵物':['飼料','貓砂','醫療','玩具'],'回饋':['優惠','現金回饋'],'其他':['紅包','送禮','其他']},
@@ -592,123 +734,262 @@ let recs=[
   {date:'2026-03-15',type:'exp',cat:'吃喝',sub:'午餐',amount:320,account:'台新黑狗',payer:'聆',member:'聆',note:'FP-麥當勞'},
   {date:'2026-03-15',type:'exp',cat:'吃喝',sub:'飲料',amount:45,account:'皮的現金',payer:'皮皮',member:'皮皮',note:'全-奶茶'},
   {date:'2026-03-14',type:'exp',cat:'固定',sub:'管理費',amount:3118,account:'台新黑狗',payer:'聆',member:'家',note:'3月'},
-  {date:'2026-03-14',type:'exp',cat:'固定',sub:'汽車清潔費',amount:500,account:'台新黑狗',payer:'聆',member:'家',note:''},
   {date:'2026-03-14',type:'exp',cat:'交通',sub:'加油',amount:1200,account:'台新黑狗',payer:'聆',member:'聆',note:'上群加油站'},
   {date:'2026-03-13',type:'inc',cat:'正職',sub:'薪資',amount:29500,account:'台新R',payer:'聆',member:'聆',note:''},
   {date:'2026-03-13',type:'exp',cat:'代購',sub:'商品',amount:6322,account:'台新R',payer:'聆',member:'聆',note:'螺獅粉'},
   {date:'2026-03-12',type:'xfr',cat:'轉帳',sub:'轉帳',amount:15000,fromAcc:'台新R',toAcc:'台新黑狗',fromMem:'聆',toMem:'皮皮',note:'還信用卡'},
   {date:'2026-03-12',type:'exp',cat:'醫療',sub:'掛號',amount:250,account:'聆的現金',payer:'聆',member:'蹦蹦',note:'吳鎮宇'},
-  {date:'2026-03-12',type:'exp',cat:'交通',sub:'eTag',amount:400,account:'台新黑狗',payer:'聆',member:'聆',note:''},
   {date:'2026-03-10',type:'exp',cat:'吃喝',sub:'晚餐',amount:450,account:'台新黑狗',payer:'皮皮',member:'家',note:'FP-張鴨肉麵'},
   {date:'2026-03-10',type:'inc',cat:'額外',sub:'還',amount:7250,account:'台新R',payer:'聆',member:'聆',note:'汝-機票'},
   {date:'2026-03-08',type:'exp',cat:'教育',sub:'補習',amount:2550,account:'聆的現金',payer:'聆',member:'蹦蹦',note:'學費'},
-  {date:'2026-03-07',type:'exp',cat:'回饋',sub:'優惠',amount:-14,account:'台新黑狗',payer:'聆',member:'聆',note:'全聯促'},
-  {date:'2026-03-05',type:'exp',cat:'醫療',sub:'藥-吃',amount:180,account:'聆的現金',payer:'聆',member:'聆',note:'皰疹藥'},
-  {date:'2026-03-01',type:'exp',cat:'其他',sub:'其他',amount:900,account:'聆的現金',payer:'聆',member:'聆',note:'武聖宮'},
 ];
 
-// ═══════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════
-let curPage='records', curMonth='2026-03', rTab='all', chartType='exp';
-let editRecIdx=null, addType='exp', addBig='吃喝', addSub='早餐';
+let curPage='records', curMonth='2026-03', rTab='all', chartType='exp', selDate=null;
+let editRecIdx=null, editSpId='', editKbId='', editContentId='';
+let addType='exp', addBig='吃喝', addSub='早餐';
 let editBig=null, editBigType='exp', editSubIdx=null;
-let editAccIdx=null, accPickCol=PAL[0], accDetIdx=null, accDetTab='tx';
+let editAccIdx=null, accPickCol=PAL[0], accDetIdx=null;
 let editMemIdx=null, memPickCol=PAL[0];
-let kbVal='0', kbCtx='add';
+let kbVal='0', kbCtx='add', kbAmtId='add-amt-val';
+let eType='exp', eBig='吃喝', eSub='早餐';
 let donutChart=null, accDonutChart=null;
+let mpYear=2026;
 
 const fmt=n=>'NT$'+Math.round(Math.abs(n)).toLocaleString();
 const mRecs=()=>recs.filter(r=>r.date.startsWith(curMonth));
 
-// ═══════════════════════════════════════
-// PAGE SWITCHING
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   FIREBASE SYNC
+══════════════════════════════════ */
+function updateFbStatus(ok){
+  ['fb-status','fb-status-settings'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.textContent=ok?'已同步':'離線';el.className='fb-status '+(ok?'ok':'err');}
+  });
+}
+
+window._onFbReady = async ()=>{
+  updateFbStatus(true);
+  // Load data from Firebase
+  try{
+    const fbRecs = await window._fbGetAll('records');
+    if(fbRecs.length>0){
+      recs = fbRecs.map(r=>({...r}));
+    } else {
+      // seed initial data
+      for(const r of recs){ await window._fbSave('records', r); }
+    }
+    const fbAccs = await window._fbGetAll('accounts');
+    if(fbAccs.length>0) accounts = fbAccs.map(a=>({...a}));
+    const fbMems = await window._fbGetAll('members');
+    if(fbMems.length>0) members = fbMems.map(m=>({...m}));
+    renderRecs();
+    renderSettings();
+    updateAddSelects();
+    updateFbStatus(true);
+  } catch(e){ console.error(e); updateFbStatus(false); }
+};
+
+async function fbSaveRec(r){
+  if(!window._fbReady)return;
+  if(r._id) await window._fbUpdate('records', r._id, r);
+  else { const ref=await window._fbSave('records',r); if(ref) r._id=ref.id; }
+}
+async function fbDeleteRec(r){
+  if(!window._fbReady||!r._id)return;
+  await window._fbDelete('records', r._id);
+}
+async function fbSaveAcc(a){
+  if(!window._fbReady)return;
+  if(a._id) await window._fbUpdate('accounts', a._id, a);
+  else { const ref=await window._fbSave('accounts',a); if(ref) a._id=ref.id; }
+}
+async function fbDeleteAcc(a){
+  if(!window._fbReady||!a._id)return;
+  await window._fbDelete('accounts', a._id);
+}
+async function fbSaveMem(m){
+  if(!window._fbReady)return;
+  if(m._id) await window._fbUpdate('members', m._id, m);
+  else { const ref=await window._fbSave('members',m); if(ref) m._id=ref.id; }
+}
+async function fbDeleteMem(m){
+  if(!window._fbReady||!m._id)return;
+  await window._fbDelete('members', m._id);
+}
+
+/* ══════════════════════════════════
+   PAGE SWITCHING
+══════════════════════════════════ */
 function switchPage(p){
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('on'));
   document.getElementById('pg-'+p).classList.add('active');
   document.getElementById('nav-'+p).classList.add('on');
   curPage=p;
-  if(p==='records') renderRecs();
-  if(p==='chart') renderChart();
-  if(p==='asset') renderAsset();
-  if(p==='settings'){renderSettings();}
+  if(p==='records')renderRecs();
+  if(p==='chart')renderChart();
+  if(p==='asset')renderAsset();
+  if(p==='settings')renderSettings();
   syncMonthLabels();
 }
-
 function syncMonthLabels(){
   ['month-lbl','chart-month-lbl'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=curMonth;});
 }
-
 function chgMonth(d){
   const[y,m]=curMonth.split('-').map(Number);let ny=y,nm=m;
   if(d===0){ny=2026;nm=3;}else{nm+=d;if(nm>12){nm=1;ny++;}if(nm<1){nm=12;ny--;}}
   curMonth=`${ny}-${String(nm).padStart(2,'0')}`;
-  syncMonthLabels();
-  renderRecs();
+  selDate=null;
+  syncMonthLabels();renderRecs();
   if(curPage==='chart')renderChart();
 }
 
-// ═══════════════════════════════════════
-// SUB-PAGE
-// ═══════════════════════════════════════
-function openSP(id){document.getElementById(id).classList.add('open');}
-function closeSubPage(id){document.getElementById(id).classList.remove('open');}
+/* ══════════════════════════════════
+   MONTH PICKER
+══════════════════════════════════ */
+function openMonthPicker(){
+  const[y,m]=curMonth.split('-').map(Number);mpYear=y;
+  renderMpGrid(m);
+  document.getElementById('month-picker-overlay').classList.add('open');
+}
+function closeMonthPicker(e){
+  if(!e||e.target===document.getElementById('month-picker-overlay'))
+    document.getElementById('month-picker-overlay').classList.remove('open');
+}
+function chgPickYear(d){mpYear+=d;const[,m]=curMonth.split('-').map(Number);renderMpGrid(m);}
+function renderMpGrid(curM){
+  document.getElementById('mp-year').textContent=mpYear;
+  document.getElementById('mp-grid').innerHTML=MONTHS.map((mn,i)=>{
+    const on=mpYear===parseInt(curMonth.split('-')[0])&&(i+1)===parseInt(curMonth.split('-')[1]);
+    return `<button class="mp-month${on?' on':''}" onclick="selectMonth(${i+1})">${mn}</button>`;
+  }).join('');
+}
+function selectMonth(m){
+  curMonth=`${mpYear}-${String(m).padStart(2,'0')}`;
+  syncMonthLabels();renderRecs();
+  if(curPage==='chart')renderChart();
+  document.getElementById('month-picker-overlay').classList.remove('open');
+}
 
-// ═══════════════════════════════════════
-// RECORDS
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   SUB-PAGES
+══════════════════════════════════ */
+function openSP(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.display='flex';
+  requestAnimationFrame(()=>{ el.classList.add('open'); });
+}
+function closeSP(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.remove('open');
+  setTimeout(()=>{ if(!el.classList.contains('open')) el.style.display='none'; },300);
+}
+function openSettingsSP(id){openSP(id);}
+
+/* ══════════════════════════════════
+   RECORDS
+══════════════════════════════════ */
 function setRTab(btn,t){
   document.querySelectorAll('#pg-records .tab-btn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');rTab=t;renderRecs();
 }
-
 function renderRecs(){
   const data=mRecs();
   const te=data.filter(r=>r.type==='exp').reduce((s,r)=>s+r.amount,0);
   const ti=data.filter(r=>r.type==='inc').reduce((s,r)=>s+r.amount,0);
   const bal=ti-te;
-  document.getElementById('tot-exp').textContent=fmt(te);
-  document.getElementById('tot-inc').textContent=fmt(ti);
+  const expEl=document.getElementById('tot-exp');expEl.textContent=fmt(te);expEl.style.color='#e05050';
+  const incEl=document.getElementById('tot-inc');incEl.textContent=fmt(ti);incEl.style.color='#40a060';
   const bv=document.getElementById('bal-val');
-  bv.textContent=(bal<0?'-':'+')+fmt(bal);bv.style.color=bal<0?'#d4859a':'#85c4aa';
-  let filtered=data;
-  if(rTab==='exp')filtered=data.filter(r=>r.type==='exp');
-  else if(rTab==='inc')filtered=data.filter(r=>r.type==='inc');
-  else if(rTab==='xfr')filtered=data.filter(r=>r.type==='xfr');
+  bv.textContent=(bal<0?'-':'+')+fmt(bal);bv.style.color=bal<0?'#b07070':'#6a9a6a';
+  // tab filter
+  let tabData=data;
+  if(rTab==='exp')tabData=data.filter(r=>r.type==='exp');
+  else if(rTab==='inc')tabData=data.filter(r=>r.type==='inc');
+  else if(rTab==='xfr')tabData=data.filter(r=>r.type==='xfr');
+  renderCal(data,tabData);
+  renderRecList(tabData);
+}
+
+const fmtS=n=>{const a=Math.round(Math.abs(n));return a>=10000?(a/1000).toFixed(0)+'k':a>=1000?(a/1000).toFixed(1)+'k':String(a);};
+
+function renderCal(allData,tabData){
+  const[y,m]=curMonth.split('-').map(Number);
+  const firstDay=new Date(y,m-1,1).getDay();
+  const daysInMonth=new Date(y,m,0).getDate();
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const dayMap={};
+  tabData.forEach(r=>{
+    if(!dayMap[r.date])dayMap[r.date]={exp:0,inc:0,xfr:0};
+    if(r.type==='exp')dayMap[r.date].exp+=r.amount;
+    else if(r.type==='inc')dayMap[r.date].inc+=r.amount;
+    else dayMap[r.date].xfr+=r.amount;
+  });
+  let html='';
+  for(let i=0;i<firstDay;i++) html+=`<div class="cal-day placeholder"><span class="cal-dn">&nbsp;</span></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${curMonth}-${String(d).padStart(2,'0')}`;
+    const dm=dayMap[ds];
+    const hasRec=!!dm&&(dm.exp||dm.inc||dm.xfr);
+    const isToday=ds===todayStr;
+    const isSel=ds===selDate;
+    let cls='cal-day'+(hasRec?' has-rec':'')+(isToday?' today':'')+(isSel?' selected':'');
+    let inner=isToday?`<span class="cal-dn"><span style="background:#f0a050;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center">${d}</span></span>`:`<span class="cal-dn">${d}</span>`;
+    if(dm&&dm.exp) inner+=`<span class="cal-ae">-${fmtS(dm.exp)}</span>`;
+    if(dm&&dm.inc) inner+=`<span class="cal-ai">+${fmtS(dm.inc)}</span>`;
+    if(dm&&dm.xfr&&!dm.exp&&!dm.inc) inner+=`<span class="cal-ax">${fmtS(dm.xfr)}</span>`;
+    html+=`<div class="${cls}" onclick="selectCalDay('${ds}')">${inner}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=html;
+  const bar=document.getElementById('sel-bar');
+  if(selDate){
+    bar.classList.add('show');
+    document.getElementById('sel-bar-txt').textContent=selDate.slice(5).replace('-','/')+' 明細';
+  } else bar.classList.remove('show');
+}
+
+function selectCalDay(ds){selDate=selDate===ds?null:ds;renderRecs();}
+function clearSelDate(){selDate=null;renderRecs();}
+
+function renderRecList(tabData){
+  const filtered=selDate?tabData.filter(r=>r.date===selDate):tabData;
   const byD={};filtered.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
   const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
   let html='';
   dates.forEach(date=>{
     const dr=byD[date];
     const dt=dr.reduce((s,r)=>r.type==='inc'?s+r.amount:r.type==='exp'?s-r.amount:s,0);
-    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span class="day-tot" style="color:${dt>=0?'#85c4aa':'#d4859a'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
+    if(!selDate) html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span style="font-size:12px;font-weight:700;color:${dt>=0?'#6a9a6a':'#b07070'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
     dr.forEach(r=>{
       const gi=recs.indexOf(r);
       if(r.type==='xfr'){
-        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content')"><div class="tx-dot" style="background:#a8d4f0"></div><div class="tx-info"><div class="tx-name">轉帳</div><div class="tx-sub">${r.fromMem} ${r.fromAcc} → ${r.toMem} ${r.toAcc}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt x">${fmt(r.amount)}</div><div class="tx-mem">轉帳</div></div></div>`;
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content','kb-re')"><div class="tx-dot" style="background:#5090d0"></div><div class="tx-info"><div class="tx-name">轉帳</div><div class="tx-sub">${r.fromMem} ${r.fromAcc} → ${r.toMem} ${r.toAcc}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt x">${fmt(r.amount)}</div><div class="tx-mem">轉帳</div></div></div>`;
       } else {
-        const col=CAT_COL[r.cat]||'#e0e0e0';
+        const col=CAT_COL[r.cat]||'#aaa';
         const sign=r.type==='inc'?'+':r.amount<0?'+':'-';
-        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content','kb-re')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
       }
     });
   });
-  document.getElementById('tx-list').innerHTML=html||'<div style="text-align:center;padding:48px 0;color:var(--ts);font-weight:600">本月尚無記錄</div>';
+  document.getElementById('tx-list').innerHTML=html||`<div style="text-align:center;padding:36px 0;color:var(--ts);font-weight:600">${selDate?'當日無記錄':'本月尚無記錄'}</div>`;
 }
 
-// ═══════════════════════════════════════
-// CHART
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   CHART
+══════════════════════════════════ */
 function setChartType(t){
   chartType=t;
   const ce=document.getElementById('ct-exp'),ci=document.getElementById('ct-inc');
-  ce.className='type-tog'+(t==='exp'?' on-exp':'');ce.style.cssText=t==='exp'?'':'color:var(--ts);background:var(--bg);flex:1;padding:9px;border-radius:14px;border:1.5px solid var(--bd);font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif';
-  ci.className='type-tog'+(t==='inc'?' on-inc':'');ci.style.cssText=t==='inc'?'':'color:var(--ts);background:var(--bg);flex:1;padding:9px;border-radius:14px;border:1.5px solid var(--bd);font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif';
+  ce.className='type-seg-btn'+(t==='exp'?' on-exp':'');
+  if(t!=='exp'){ce.style.cssText='color:var(--ts);background:var(--bg)';}else{ce.style.cssText='';}
+  ci.className='type-seg-btn'+(t==='inc'?' on-inc':'');
+  if(t!=='inc'){ci.style.cssText='color:var(--ts);background:var(--bg)';}else{ci.style.cssText='';}
   renderChart();
 }
-
 function renderChart(){
   const data=mRecs();
   const exps=data.filter(r=>r.type==='exp'&&r.amount>0);
@@ -716,92 +997,92 @@ function renderChart(){
   const te=exps.reduce((s,r)=>s+r.amount,0),ti=incs.reduce((s,r)=>s+r.amount,0);
   const bal=ti-te;
   document.getElementById('chart-stats').innerHTML=`
-    <div class="stat-card"><div class="stat-lbl">支出合計</div><div class="stat-val" style="color:#d4859a">-${fmt(te)}</div></div>
-    <div class="stat-card"><div class="stat-lbl">收入合計</div><div class="stat-val" style="color:#85c4aa">+${fmt(ti)}</div></div>
-    <div class="stat-card"><div class="stat-lbl">結餘</div><div class="stat-val" style="color:${bal>=0?'#85c4aa':'#d4859a'}">${bal>=0?'+':'-'}${fmt(Math.abs(bal))}</div></div>`;
+    <div class="stat-card"><div class="stat-lbl">支出合計</div><div class="stat-val" style="color:#b07070">-${fmt(te)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">收入合計</div><div class="stat-val" style="color:#6a9a6a">+${fmt(ti)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">結餘</div><div class="stat-val" style="color:${bal>=0?'#6a9a6a':'#b07070'}">${bal>=0?'+':'-'}${fmt(Math.abs(bal))}</div></div>`;
   const src=chartType==='exp'?exps:incs;
   const ct={};src.forEach(r=>{ct[r.cat]=(ct[r.cat]||{a:0,c:0});ct[r.cat].a+=r.amount;ct[r.cat].c++;});
   const sorted=Object.entries(ct).sort((a,b)=>b[1].a-a[1].a);
   const total=sorted.reduce((s,[,v])=>s+v.a,0);
-  const labels=sorted.map(([k])=>k),colors=labels.map(l=>CAT_COL[l]||'#e0e0e0');
+  const labels=sorted.map(([k])=>k),colors=labels.map(l=>CAT_COL[l]||'#9e9890');
   document.getElementById('donut-total').textContent=fmt(total);
   if(donutChart){donutChart.destroy();donutChart=null;}
-  if(total>0){donutChart=new Chart(document.getElementById('donut-canvas'),{type:'doughnut',data:{labels,datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#fff'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});}
+  if(total>0){donutChart=new Chart(document.getElementById('donut-canvas'),{type:'doughnut',data:{labels,datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#faf8f6'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});}
   document.getElementById('donut-legend').innerHTML=sorted.slice(0,5).map(([cat,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${cat}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
   document.getElementById('chart-cat-list').innerHTML=sorted.map(([cat,v],i)=>{
     const pct=total>0?(v.a/total*100).toFixed(1):'0.0';
-    return `<div class="cat-card" onclick="openCatDet('${cat}','${colors[i]}')"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt ${chartType==='inc'?'style="color:#85c4aa"':''}">-${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
+    return `<div class="cat-card" onclick="openCatDet('${cat}','${colors[i]}')"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt ${chartType==='inc'?'style="color:#6a9a6a"':''}">${chartType==='inc'?'+':'-'}${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
   }).join('');
 }
-
 function openCatDet(cat,col){
   document.getElementById('cat-det-title').textContent=cat;
-  const src=chartType==='exp'?mRecs().filter(r=>r.type==='exp'&&r.cat===cat):mRecs().filter(r=>r.type==='inc'&&r.cat===cat);
+  const src=mRecs().filter(r=>(chartType==='exp'?r.type==='exp':r.type==='inc')&&r.cat===cat);
   const byD={};src.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
   const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
   let html='';
   dates.forEach(date=>{
     const dt=byD[date].reduce((s,r)=>chartType==='inc'?s+r.amount:s-r.amount,0);
-    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span class="day-tot" style="color:${dt>=0?'#85c4aa':'#d4859a'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
+    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span style="font-size:12px;font-weight:700;color:${dt>=0?'#6a9a6a':'#b07070'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
     byD[date].forEach(r=>{
-      html+=`<div class="tx-item"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.sub}</div><div class="tx-sub">${r.member} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${chartType==='inc'?'i':'e'}">${chartType==='inc'?'+':'-'}${fmt(r.amount)}</div></div></div>`;
+      const gi=recs.indexOf(r);
+      html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-chart-rec-edit','cre-content','kb-cre')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.sub}</div><div class="tx-sub">${r.member} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${chartType==='inc'?'i':'e'}">${chartType==='inc'?'+':'-'}${fmt(r.amount)}</div></div></div>`;
     });
   });
   document.getElementById('cat-det-list').innerHTML=html;
   openSP('sp-cat-det');
 }
 
-// ═══════════════════════════════════════
-// ASSET
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   ASSET
+══════════════════════════════════ */
 function renderAsset(){
   const pos=accounts.filter(a=>a.balance>0&&a.type!=='card').reduce((s,a)=>s+a.balance,0);
   const lb=accounts.filter(a=>a.balance<0||a.type==='card').reduce((s,a)=>s+a.balance,0);
   const net=pos+lb;
-  const na=document.getElementById('net-amt');na.textContent=(net<0?'-':'')+fmt(net);na.style.color=net<0?'#d4859a':'var(--tp)';
+  const na=document.getElementById('net-amt');na.textContent=(net<0?'-':'')+fmt(net);na.style.color=net<0?'#b07070':'var(--tp)';
   document.getElementById('asset-disp').textContent=fmt(pos);
   document.getElementById('asset-liab').textContent='-'+fmt(Math.abs(lb));
   const order=['cash','bank','card','wallet','virtual'];
   let html='';
   order.forEach(t=>{
     const list=accounts.filter(a=>a.type===t);if(!list.length)return;
-    html+=`<div class="acc-section"><div class="acc-section-hdr"><span class="acc-section-title">${ACC_TYPE_LBL[t]}</span><button class="acc-add-btn" onclick="openAccEdit(null,'${t}')">+ 新增</button></div>`;
+    html+=`<div class="acc-section"><div class="acc-hdr"><span class="acc-hdr-title">${ACC_TYPE_LBL[t]}</span><button class="acc-add-btn" onclick="openAccEdit(null,'${t}')">+ 新增</button></div>`;
     list.forEach(a=>{
       const gi=accounts.indexOf(a);
-      html+=`<div class="acc-item" onclick="openAccDet(${gi})"><div class="acc-dot" style="background:${a.color}"></div><div class="acc-info"><div class="acc-name">${a.name}</div><div class="acc-sub">${a.owner} · ${ACC_TYPE_LBL[a.type]}</div></div><div class="acc-bal" style="color:${a.balance<0?'#d4859a':'var(--tp)'}">${a.balance<0?'-':''}${fmt(a.balance)}</div></div>`;
+      html+=`<div class="acc-item" onclick="openAccDet(${gi})"><div class="acc-dot" style="background:${a.color}"></div><div class="acc-info"><div class="acc-name">${a.name}</div><div class="acc-sub">${a.owner} · ${ACC_TYPE_LBL[a.type]}</div></div><div class="acc-bal" style="color:${a.balance<0?'#b07070':'var(--tp)'}">${a.balance<0?'-':''}${fmt(a.balance)}</div></div>`;
     });
     html+='</div>';
   });
-  document.getElementById('acc-list').innerHTML=html+'<div style="height:16px"></div>';
+  document.getElementById('acc-list').innerHTML=html;
   updateAccOwnerSelect();
 }
-
 function openAccDet(i){
-  accDetIdx=i;accDetTab='tx';
-  const a=accounts[i];
+  accDetIdx=i;const a=accounts[i];
   document.getElementById('acc-det-title').textContent=a.name;
   document.getElementById('acc-det-amt').textContent=(a.balance<0?'-':'')+fmt(a.balance);
-  document.getElementById('acc-det-amt').style.color=a.balance<0?'#d4859a':'var(--tp)';
+  document.getElementById('acc-det-amt').style.color=a.balance<0?'#b07070':'var(--tp)';
   const r2=recs.filter(r=>r.account===a.name);
   const out=r2.filter(r=>r.type==='exp'&&r.amount>0).reduce((s,r)=>s+r.amount,0);
   const inn=r2.filter(r=>r.type==='inc').reduce((s,r)=>s+r.amount,0);
   const bal=inn-out;
   document.getElementById('acc-det-out').textContent=fmt(out);
   document.getElementById('acc-det-in').textContent=fmt(inn);
-  const db=document.getElementById('acc-det-bal');db.textContent=(bal<0?'-':'+')+fmt(bal);db.style.color=bal<0?'#d4859a':'#85c4aa';
-  setAccDetTab('tx',document.querySelector('#sp-acc-det .det-tab'));
+  const db=document.getElementById('acc-det-bal');db.textContent=(bal<0?'-':'+')+fmt(bal);db.style.color=bal<0?'#b07070':'#6a9a6a';
+  // reset tabs
+  document.getElementById('acc-det-list').style.display='block';
+  document.getElementById('acc-det-chart').style.display='none';
+  document.querySelectorAll('.det-tab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('dtt-tx').classList.add('on');
+  renderAccDetList();
   openSP('sp-acc-det');
 }
-
 function setAccDetTab(t,btn){
-  accDetTab=t;
-  document.querySelectorAll('#sp-acc-det .det-tab').forEach(b=>{b.className='det-tab'+(b===btn?' on':'');});
+  document.querySelectorAll('.det-tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
   document.getElementById('acc-det-list').style.display=t==='tx'?'block':'none';
   document.getElementById('acc-det-chart').style.display=t==='chart'?'block':'none';
-  if(t==='tx') renderAccDetList();
-  else renderAccDetChart();
+  if(t==='tx')renderAccDetList();else renderAccDetChart();
 }
-
 function renderAccDetList(){
   if(accDetIdx===null)return;
   const a=accounts[accDetIdx];
@@ -812,17 +1093,15 @@ function renderAccDetList(){
   dates.forEach(date=>{
     const dr=byD[date];
     const dt=dr.reduce((s,r)=>r.type==='inc'?s+r.amount:r.type==='exp'?s-r.amount:s,0);
-    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span class="day-tot" style="color:${dt>=0?'#85c4aa':'#d4859a'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
+    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span style="font-size:12px;font-weight:700;color:${dt>=0?'#6a9a6a':'#b07070'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
     dr.forEach(r=>{
-      const gi=recs.indexOf(r);
-      const col=CAT_COL[r.cat]||'#e0e0e0';
+      const gi=recs.indexOf(r);const col=CAT_COL[r.cat]||'#9e9890';
       const sign=r.type==='inc'?'+':r.amount<0?'+':'-';
-      html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+      html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content','kb-are')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
     });
   });
   document.getElementById('acc-det-list').innerHTML=html||'<div style="text-align:center;padding:40px;color:var(--ts);font-weight:600">無記錄</div>';
 }
-
 function renderAccDetChart(){
   if(accDetIdx===null)return;
   const a=accounts[accDetIdx];
@@ -830,26 +1109,23 @@ function renderAccDetChart(){
   const ct={};r2.forEach(r=>{ct[r.cat]=(ct[r.cat]||{a:0,c:0});ct[r.cat].a+=r.amount;ct[r.cat].c++;});
   const sorted=Object.entries(ct).sort((a,b)=>b[1].a-a[1].a);
   const total=sorted.reduce((s,[,v])=>s+v.a,0);
-  const colors=sorted.map(([k])=>CAT_COL[k]||'#e0e0e0');
-  let html=`<div style="padding:12px 20px"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">`;
+  const colors=sorted.map(([k])=>CAT_COL[k]||'#9e9890');
   const inn=recs.filter(r=>r.account===a.name&&r.type==='inc').reduce((s,r)=>s+r.amount,0);
   const bal=inn-total;
-  html+=`<div class="stat-card"><div class="stat-lbl">流出</div><div class="stat-val" style="color:#d4859a">-${fmt(total)}</div></div><div class="stat-card"><div class="stat-lbl">流入</div><div class="stat-val" style="color:#85c4aa">+${fmt(inn)}</div></div><div class="stat-card"><div class="stat-lbl">結餘</div><div class="stat-val" style="color:${bal>=0?'#85c4aa':'#d4859a'}">${bal>=0?'+':'-'}${fmt(Math.abs(bal))}</div></div></div></div>`;
-  html+=`<div class="donut-section" style="margin:0 20px 14px"><div class="donut-inner"><div class="donut-wrap"><canvas id="acc-donut" width="140" height="140"></canvas><div class="donut-center"><div class="donut-center-lbl">支出合計</div><div class="donut-center-val">${fmt(total)}</div></div></div><table class="donut-legend" id="acc-donut-legend"></table></div></div>`;
+  let html=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 18px"><div class="stat-card"><div class="stat-lbl">流出</div><div class="stat-val" style="color:#b07070">-${fmt(total)}</div></div><div class="stat-card"><div class="stat-lbl">流入</div><div class="stat-val" style="color:#6a9a6a">+${fmt(inn)}</div></div><div class="stat-card"><div class="stat-lbl">結餘</div><div class="stat-val" style="color:${bal>=0?'#6a9a6a':'#b07070'}">${bal>=0?'+':'-'}${fmt(Math.abs(bal))}</div></div></div>`;
+  html+=`<div class="donut-sec" style="margin:0 18px 12px"><div class="donut-inner"><div class="donut-wrap"><canvas id="acc-donut" width="140" height="140"></canvas><div class="donut-center"><div class="donut-cl">支出合計</div><div class="donut-cv">${fmt(total)}</div></div></div><table class="dleg" id="acc-donut-legend"></table></div></div>`;
   sorted.forEach(([cat,v],i)=>{
     const pct=total>0?(v.a/total*100).toFixed(1):'0.0';
-    html+=`<div class="cat-card" style="margin-bottom:8px"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt">-${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
+    html+=`<div class="cat-card"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt">-${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
   });
   document.getElementById('acc-det-chart').innerHTML=html;
   if(total>0){
     if(accDonutChart){accDonutChart.destroy();accDonutChart=null;}
-    accDonutChart=new Chart(document.getElementById('acc-donut'),{type:'doughnut',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#fff'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});
+    accDonutChart=new Chart(document.getElementById('acc-donut'),{type:'doughnut',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#faf8f6'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});
     document.getElementById('acc-donut-legend').innerHTML=sorted.slice(0,5).map(([cat,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${cat}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
   }
 }
-
 function openAccEditFromDet(){openAccEdit(accDetIdx);}
-
 function openAccEdit(i, defaultType='cash'){
   editAccIdx=i;accPickCol=i===null?PAL[0]:accounts[i].color;
   document.getElementById('acc-edit-title').textContent=i===null?'新增帳戶':'編輯帳戶';
@@ -858,95 +1134,83 @@ function openAccEdit(i, defaultType='cash'){
   document.getElementById('acc-type').value=i===null?defaultType:accounts[i].type;
   document.getElementById('acc-bal').value=i===null?'':accounts[i].balance;
   updateAccOwnerSelect(i===null?null:accounts[i].owner);
-  renderAccColors();
-  openSP('sp-acc-edit');
+  renderAccColors();openSP('sp-acc-edit');
 }
-
 function updateAccOwnerSelect(sel){
   const el=document.getElementById('acc-owner');if(!el)return;
   el.innerHTML=members.map(m=>`<option${m.name===sel?' selected':''}>${m.name}</option>`).join('');
 }
-
 function renderAccColors(){
   document.getElementById('acc-colors').innerHTML=PAL.map(c=>`<div class="swatch${c===accPickCol?' on':''}" style="background:${c}" onclick="pickAccCol('${c}')"></div>`).join('');
 }
 function pickAccCol(c){accPickCol=c;renderAccColors();}
-
-function saveAcc(){
+async function saveAcc(){
   const name=document.getElementById('acc-name').value.trim();if(!name)return;
   const obj={name,color:accPickCol,type:document.getElementById('acc-type').value,owner:document.getElementById('acc-owner').value,balance:parseFloat(document.getElementById('acc-bal').value)||0};
-  if(editAccIdx===null)accounts.push(obj);else accounts[editAccIdx]=obj;
-  closeSubPage('sp-acc-edit');renderAsset();
+  if(editAccIdx===null){accounts.push(obj);await fbSaveAcc(accounts[accounts.length-1]);}
+  else{Object.assign(accounts[editAccIdx],obj);await fbSaveAcc(accounts[editAccIdx]);}
+  closeSP('sp-acc-edit');renderAsset();
   if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=obj.name;
 }
-
-function deleteAcc(){
+async function deleteAcc(){
   if(confirm(`確定刪除「${accounts[editAccIdx].name}」？`)){
-    accounts.splice(editAccIdx,1);closeSubPage('sp-acc-edit');closeSubPage('sp-acc-det');accDetIdx=null;renderAsset();
+    await fbDeleteAcc(accounts[editAccIdx]);
+    accounts.splice(editAccIdx,1);
+    closeSP('sp-acc-edit');closeSP('sp-acc-det');accDetIdx=null;renderAsset();
   }
 }
 
-function deleteAccRec(){
-  if(confirm('確定刪除這筆記錄？')){recs.splice(editRecIdx,1);closeSubPage('sp-acc-rec-edit');renderAccDetList();}
-}
-
-// ═══════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   SETTINGS
+══════════════════════════════════ */
 function renderSettings(){
   document.getElementById('family-members').innerHTML=members.slice(0,5).map(m=>
     `<div class="mem-bubble"><div class="mem-av-sm" style="background:${m.color}55;color:${m.color}">${m.name[0]}</div><span class="mem-nm-sm">${m.name}</span></div>`).join('');
   document.getElementById('member-hint').textContent=members.map(m=>m.name).join('、');
 }
-
-// Members
 function renderMemList(){
   document.getElementById('mem-list').innerHTML=
     members.map((m,i)=>`<div class="mem-item" onclick="openMemEdit(${i})"><div class="mem-avatar" style="background:${m.color}33;color:${m.color}">${m.name[0]}</div><span style="flex:1;font-size:14px;font-weight:700">${m.name}</span><span class="arrow">›</span></div>`).join('')+
     `<button class="add-row" onclick="openMemEdit(null)">+ 新增成員</button>`;
 }
-
 function openMemEdit(i){
   editMemIdx=i;memPickCol=i===null?PAL[0]:members[i].color;
   document.getElementById('mem-edit-title').textContent=i===null?'新增成員':'編輯成員';
   document.getElementById('mem-del-btn').style.display=i===null?'none':'flex';
   document.getElementById('mem-name').value=i===null?'':members[i].name;
-  renderMemColors();
-  openSP('sp-mem-edit');
+  renderMemColors();openSP('sp-mem-edit');
 }
 function renderMemColors(){document.getElementById('mem-colors').innerHTML=PAL.map(c=>`<div class="swatch${c===memPickCol?' on':''}" style="background:${c}" onclick="pickMemCol('${c}')"></div>`).join('');}
 function pickMemCol(c){memPickCol=c;renderMemColors();}
-function saveMem(){
+async function saveMem(){
   const n=document.getElementById('mem-name').value.trim();if(!n)return;
-  if(editMemIdx===null)members.push({name:n,color:memPickCol});
-  else members[editMemIdx]={name:n,color:memPickCol};
-  closeSubPage('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();
+  if(editMemIdx===null){members.push({name:n,color:memPickCol});await fbSaveMem(members[members.length-1]);}
+  else{members[editMemIdx].name=n;members[editMemIdx].color=memPickCol;await fbSaveMem(members[editMemIdx]);}
+  closeSP('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();
 }
-function deleteMem(){
-  if(confirm(`確定刪除「${members[editMemIdx].name}」？`)){members.splice(editMemIdx,1);closeSubPage('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();}
+async function deleteMem(){
+  if(confirm(`確定刪除「${members[editMemIdx].name}」？`)){
+    await fbDeleteMem(members[editMemIdx]);
+    members.splice(editMemIdx,1);closeSP('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();
+  }
 }
-
-// Categories
 function renderCats(){
   ['exp','inc'].forEach(type=>{
     document.getElementById(type+'-cat-list').innerHTML=Object.keys(CATS[type]).map((big,i,arr)=>`
       <div class="menu-item" style="${i<arr.length-1?'border-bottom:1px solid var(--bd)':''}" onclick="openBigCatEdit('${type}','${big}')">
-        <div style="flex:1"><div class="menu-label">${big}</div><div class="menu-sub">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div></div>
+        <div style="flex:1"><div class="menu-lbl">${big}</div><div class="menu-sub">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div></div>
         <span style="font-size:11px;font-weight:700;color:var(--ts);margin-right:6px">${CATS[type][big].length}個</span><span class="arrow">›</span>
       </div>`).join('');
   });
 }
-
 function openBigCatEdit(type,big){
   editBigType=type;editBig=big;
   document.getElementById('bigcat-edit-title').textContent=big===null?'新增大類':'編輯大類';
   document.getElementById('bigcat-del-btn').style.display=big===null?'none':'flex';
   document.getElementById('bigcat-name').value=big===null?'':big;
   document.getElementById('new-sub').value='';
-  renderSubTags();
-  openSP('sp-bigcat-edit');
+  renderSubTags();openSP('sp-bigcat-edit');
 }
-
 function saveBigCatName(){
   const newName=document.getElementById('bigcat-name').value.trim();if(!newName)return;
   if(editBig===null){
@@ -954,197 +1218,162 @@ function saveBigCatName(){
     CATS[editBigType][newName]=[];editBig=newName;
     document.getElementById('bigcat-del-btn').style.display='flex';
   } else if(newName!==editBig){
-    const keys=Object.keys(CATS[editBigType]);const newObj={};
+    const keys=Object.keys(CATS[editBigType]),newObj={};
     keys.forEach(k=>{newObj[k===editBig?newName:k]=CATS[editBigType][k];});
     CATS[editBigType]=newObj;editBig=newName;
   }
   renderCats();renderSubTags();document.getElementById('bigcat-edit-title').textContent='編輯大類';
 }
-
 function deleteBigCat(){
-  if(confirm(`確定刪除「${editBig}」及所有子分類？`)){delete CATS[editBigType][editBig];closeSubPage('sp-bigcat-edit');renderCats();}
+  if(confirm(`確定刪除「${editBig}」及所有子分類？`)){delete CATS[editBigType][editBig];closeSP('sp-bigcat-edit');renderCats();}
 }
-
 function renderSubTags(){
   const subs=editBig?CATS[editBigType][editBig]||[]:[];
   document.getElementById('sub-tags').innerHTML=subs.map((s,i)=>
-    `<div class="tag-chip" onclick="openSubCatEdit(${i})">${s} <span style="font-size:11px;color:var(--ts)">✎</span></div>`).join('');
+    `<div class="tag-chip" onclick="openSubCatEdit(${i})">${s} <span style="font-size:10px;color:var(--ts)">✎</span></div>`).join('');
 }
-
 function addSubCat(){
   const v=document.getElementById('new-sub').value.trim();if(!v||!editBig)return;
-  CATS[editBigType][editBig].push(v);document.getElementById('new-sub').value='';
-  renderSubTags();renderCats();
+  CATS[editBigType][editBig].push(v);document.getElementById('new-sub').value='';renderSubTags();renderCats();
 }
-
-function openSubCatEdit(i){
-  editSubIdx=i;document.getElementById('subcat-name').value=CATS[editBigType][editBig][i];
-  openSP('sp-subcat-edit');
-}
-function saveSubCat(){
-  const v=document.getElementById('subcat-name').value.trim();if(!v)return;
-  CATS[editBigType][editBig][editSubIdx]=v;closeSubPage('sp-subcat-edit');renderSubTags();renderCats();
-}
-function deleteSubCat(){
-  if(confirm(`確定刪除「${CATS[editBigType][editBig][editSubIdx]}」？`)){
-    CATS[editBigType][editBig].splice(editSubIdx,1);closeSubPage('sp-subcat-edit');renderSubTags();renderCats();
-  }
-}
-
-// Settle
+function openSubCatEdit(i){editSubIdx=i;document.getElementById('subcat-name').value=CATS[editBigType][editBig][i];openSP('sp-subcat-edit');}
+function saveSubCat(){const v=document.getElementById('subcat-name').value.trim();if(!v)return;CATS[editBigType][editBig][editSubIdx]=v;closeSP('sp-subcat-edit');renderSubTags();renderCats();}
+function deleteSubCat(){if(confirm(`確定刪除「${CATS[editBigType][editBig][editSubIdx]}」？`)){CATS[editBigType][editBig].splice(editSubIdx,1);closeSP('sp-subcat-edit');renderSubTags();renderCats();}}
 function renderSettle(){
   const bal={};members.forEach(m=>{bal[m.name]=0;});
-  TRANSFERS.forEach(t=>{bal[t.toMem]=(bal[t.toMem]||0)+t.amount;bal[t.fromMem]=(bal[t.fromMem]||0)-t.amount;});
+  recs.filter(r=>r.type==='xfr').forEach(r=>{bal[r.toMem]=(bal[r.toMem]||0)+r.amount;bal[r.fromMem]=(bal[r.fromMem]||0)-r.amount;});
   document.getElementById('settle-body').innerHTML=
-    `<div class="menu-group">`+
-    members.map(m=>{const b=bal[m.name]||0;return`<div class="menu-item"><div class="mem-avatar" style="background:${m.color}33;color:${m.color};width:32px;height:32px;border-radius:50%;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${m.name[0]}</div><span style="flex:1;font-size:14px;font-weight:700">${m.name}</span><span style="font-size:14px;font-weight:700;color:${b>0?'#85c4aa':b<0?'#d4859a':'var(--ts)'}">${b>0?'+':b<0?'-':''}${fmt(b)}</span></div>`;}).join('')+
-    `</div>`;
+    `<div class="menu-group">`+members.map(m=>{const b=bal[m.name]||0;return`<div class="menu-item"><div class="mem-avatar" style="background:${m.color}33;color:${m.color};width:32px;height:32px;border-radius:50%;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${m.name[0]}</div><span style="flex:1;font-size:14px;font-weight:700">${m.name}</span><span style="font-size:14px;font-weight:700;color:${b>0?'#6a9a6a':b<0?'#b07070':'var(--ts)'}">${b>0?'+':b<0?'-':''}${fmt(b)}</span></div>`;}).join('')+'</div>';
 }
 
-// ═══════════════════════════════════════
-// ADD RECORD
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   ADD RECORD
+══════════════════════════════════ */
 function openAdd(){
   addType='exp';addBig='吃喝';addSub='早餐';kbVal='0';
   document.getElementById('add-amt-val').textContent='0';
   document.getElementById('add-xamt-val').textContent='0';
   document.getElementById('add-note').value='';
-  setAddType('exp');
-  updateAddSelects();
+  setAddType('exp');updateAddSelects();
   document.getElementById('pg-add').classList.add('open');
 }
-
-function closeAdd(){document.getElementById('pg-add').classList.remove('open');}
-
+function closeAdd(){document.getElementById('pg-add').classList.remove('open');closeKb();}
 function setAddType(t){
   addType=t;
-  ['exp','inc','xfr'].forEach(x=>{document.getElementById('add-tt-'+x).className='type-tog'+(t===x?' on-'+x:'');});
+  ['exp','inc','xfr'].forEach(x=>{
+    const b=document.getElementById('add-tt-'+x);
+    b.className='type-seg-btn'+(t===x?' on-'+x:'');
+    if(t!==x)b.style.cssText='color:var(--ts);background:var(--bg)';else b.style.cssText='';
+  });
   document.getElementById('add-normal').style.display=t==='xfr'?'none':'flex';
   document.getElementById('add-xfr').style.display=t==='xfr'?'flex':'none';
   document.getElementById('add-xfr').className='xfr-form'+(t==='xfr'?' show':'');
   if(t!=='xfr'){const cats=CATS[t];addBig=Object.keys(cats)[0];addSub=cats[addBig][0];buildAddCatUI();}
 }
-
 function buildAddCatUI(){
   const src=CATS[addType]||CATS.exp;
   document.getElementById('add-big-tabs').innerHTML=Object.keys(src).map(c=>`<div class="big-cat-tab${c===addBig?' on':''}" onclick="selAddBig('${c}')">${c}</div>`).join('');
-  const col=CAT_COL[addBig]||'#e0e0e0';
+  const col=CAT_COL[addBig]||'#9e9890';
   document.getElementById('add-sub-grid').innerHTML=(src[addBig]||[]).map(s=>{
     const on=s===addSub;
-    return `<div class="sub-cat-item${on?' on':''}" onclick="selAddSub('${s}')"><div class="sub-cat-circle${on?' on':''}" style="background:${col}${on?'':'70'}"><span style="font-size:10px;font-weight:700;color:${on?'#555':'#aaa'}">${s}</span></div><span class="sub-cat-name">${s}</span></div>`;
+    return `<div class="sub-cat-item${on?' on':''}" onclick="selAddSub('${s}')"><div class="sub-cat-circle${on?' on':''}" style="background:${col}${on?'':'70'}"><span style="font-size:10px;font-weight:700;color:${on?'#fff':'#9e9890'}">${s}</span></div><span class="sub-cat-name">${s}</span></div>`;
   }).join('');
 }
 function selAddBig(c){addBig=c;addSub=(CATS[addType][c]||[])[0]||c;buildAddCatUI();}
 function selAddSub(s){addSub=s;buildAddCatUI();}
-
 function updateAddSelects(){
   const accOpts=accounts.map(a=>`<option>${a.name}</option>`).join('');
   const memOpts=members.map(m=>`<option>${m.name}</option>`).join('');
   ['add-acc','add-xfa','add-xta'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=accOpts;});
   ['add-member','add-payer','add-xfm','add-xtm'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=memOpts;});
 }
-
-function saveNewRec(){
+async function saveNewRec(){
   const today=new Date();
   const dateStr=`${curMonth}-${String(today.getDate()).padStart(2,'0')}`;
+  let r;
   if(addType==='xfr'){
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
-    recs.unshift({date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:document.getElementById('add-xfa').value,toAcc:document.getElementById('add-xta').value,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''});
+    r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:document.getElementById('add-xfa').value,toAcc:document.getElementById('add-xta').value,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''};
   } else {
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
-    recs.unshift({date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:document.getElementById('add-acc').value,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''});
+    r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:document.getElementById('add-acc').value,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
   }
+  recs.unshift(r);await fbSaveRec(r);
   closeAdd();renderRecs();
 }
 
-// ═══════════════════════════════════════
-// EDIT RECORD (shared)
-// ═══════════════════════════════════════
-let editSpId='',editContentId='';
-
-function openRecEdit(gi, spId, contentId){
-  editRecIdx=gi;editSpId=spId;editContentId=contentId;
-  const r=recs[gi];
-  const html=buildRecEditHTML(r);
-  document.getElementById(contentId).innerHTML=html;
-  fillRecEditValues(r);
-  openSP(spId);
-}
-
-function buildRecEditHTML(r){
+/* ══════════════════════════════════
+   EDIT RECORD
+══════════════════════════════════ */
+function openRecEdit(gi,spId,contentId,kbId){
+  editRecIdx=gi;editSpId=spId;editContentId=contentId;editKbId=kbId;
+  const r=recs[gi];eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;kbVal=String(r.amount);
   const accOpts=accounts.map(a=>`<option>${a.name}</option>`).join('');
   const memOpts=members.map(m=>`<option>${m.name}</option>`).join('');
-  return `
-    <div style="display:flex;margin:12px 20px 0;border-radius:14px;overflow:hidden;border:1px solid var(--bd);background:var(--bg);flex-shrink:0">
-      <button class="type-tog on-exp" id="et-exp" onclick="setEType('exp')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;border:none">支出</button>
-      <button class="type-tog" id="et-inc" onclick="setEType('inc')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;border:none;color:var(--ts);background:var(--bg)">收入</button>
-      <button class="type-tog" id="et-xfr" onclick="setEType('xfr')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;border:none;color:var(--ts);background:var(--bg)">轉帳</button>
+  document.getElementById(contentId).innerHTML=`
+    <div class="type-seg" style="margin:12px 18px 0">
+      <button class="type-seg-btn on-exp" id="et-exp" onclick="setEType('exp')">支出</button>
+      <button class="type-seg-btn" id="et-inc" onclick="setEType('inc')" style="color:var(--ts);background:var(--bg)">收入</button>
+      <button class="type-seg-btn" id="et-xfr" onclick="setEType('xfr')" style="color:var(--ts);background:var(--bg)">轉帳</button>
     </div>
     <div id="en-normal" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
-      <div class="amt-section" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-amt-val">0</div></div>
+      <div class="amt-section" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-amt-val">${fmt(r.amount)}</div></div>
       <div class="big-cat-tabs" id="e-big-tabs"></div>
       <div class="sub-cat-grid" id="e-sub-grid"></div>
       <div class="edit-fields">
-        <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="e-note" placeholder="選填"/></div>
+        <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="e-note" placeholder="選填" value="${r.note||''}"/></div>
         <div class="ef-row"><span class="ef-label">成員</span><select class="ef-select" id="e-member">${memOpts}</select></div>
         <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="e-payer">${memOpts}</select></div>
         <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="e-acc">${accOpts}</select></div>
       </div>
-      <div style="padding:10px 20px 20px"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
+      <div style="padding:10px 18px 16px"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
     </div>
     <div id="en-xfr" class="xfr-form">
-      <div class="amt-section" style="padding:0 0 10px" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-xamt-val">0</div></div>
+      <div class="amt-section" style="padding:0 0 10px" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-xamt-val">${fmt(r.amount)}</div></div>
       <div class="xfr-lbl">帳戶轉帳</div>
       <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfa">${accOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xta">${accOpts}</select></div></div>
       <div class="xfr-lbl" style="margin-top:6px">成員互轉</div>
       <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfm">${memOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xtm">${memOpts}</select></div></div>
-      <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="e-xnote" placeholder="選填"/></div>
+      <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="e-xnote" placeholder="選填" value="${r.note||''}"/></div>
       <div style="padding:10px 0 0"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
     </div>`;
+  // set type AFTER HTML is rendered
+  setEType(r.type, false);
+  // fill values
+  if(r.type==='xfr'){sv('e-xfa',r.fromAcc);sv('e-xta',r.toAcc);sv('e-xfm',r.fromMem);sv('e-xtm',r.toMem);}
+  else{buildECatUI();sv('e-acc',r.account);sv('e-payer',r.payer);sv('e-member',r.member);}
+  openSP(spId);
 }
-
-let eType='exp',eBig='吃喝',eSub='早餐';
-
-function fillRecEditValues(r){
-  eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;kbVal=String(r.amount);
-  setEType(r.type,false);
-  if(r.type==='xfr'){
-    document.getElementById('e-xamt-val').textContent=fmt(r.amount);
-    sv('e-xfa',r.fromAcc);sv('e-xta',r.toAcc);sv('e-xfm',r.fromMem);sv('e-xtm',r.toMem);
-    document.getElementById('e-xnote').value=r.note||'';
-  } else {
-    document.getElementById('e-amt-val').textContent=fmt(r.amount);
-    buildECatUI();sv('e-acc',r.account);sv('e-payer',r.payer);sv('e-member',r.member);
-    document.getElementById('e-note').value=r.note||'';
-  }
-}
-
 function sv(id,val){const el=document.getElementById(id);if(!el)return;for(let o of el.options){if(o.text===val){el.value=o.value;return;}}}
-
 function setEType(t,rebuild=true){
   eType=t;
-  ['exp','inc','xfr'].forEach(x=>{const b=document.getElementById('et-'+x);if(b)b.className='type-tog'+(t===x?' on-'+x:'');});
-  const isXfr=t==='xfr';
-  const nn=document.getElementById('en-normal');if(nn)nn.style.display=isXfr?'none':'flex';
-  const nx=document.getElementById('en-xfr');if(nx)nx.className='xfr-form'+(isXfr?' show':'');
-  if(!isXfr&&rebuild){eBig=Object.keys(CATS[t])[0];eSub=CATS[t][eBig][0];buildECatUI();}
+  ['exp','inc','xfr'].forEach(x=>{
+    const b=document.getElementById('et-'+x);if(!b)return;
+    b.className='type-seg-btn'+(t===x?' on-'+x:'');
+    if(t!==x)b.style.cssText='color:var(--ts);background:var(--bg)';else b.style.cssText='';
+  });
+  const nn=document.getElementById('en-normal');if(nn)nn.style.display=t==='xfr'?'none':'flex';
+  const nx=document.getElementById('en-xfr');if(nx)nx.className='xfr-form'+(t==='xfr'?' show':'');
+  if(t!=='xfr'&&rebuild){
+    const cats=CATS[t]||CATS.exp;
+    eBig=Object.keys(cats)[0];eSub=cats[eBig][0];buildECatUI();
+  } else if(t!=='xfr'){
+    buildECatUI();
+  }
 }
-
 function buildECatUI(){
   const src=CATS[eType]||CATS.exp;
-  const bt=document.getElementById('e-big-tabs');const sg=document.getElementById('e-sub-grid');
-  if(!bt||!sg)return;
+  const bt=document.getElementById('e-big-tabs');const sg=document.getElementById('e-sub-grid');if(!bt||!sg)return;
   bt.innerHTML=Object.keys(src).map(c=>`<div class="big-cat-tab${c===eBig?' on':''}" onclick="selEBig('${c}')">${c}</div>`).join('');
-  const col=CAT_COL[eBig]||'#e0e0e0';
+  const col=CAT_COL[eBig]||'#9e9890';
   sg.innerHTML=(src[eBig]||[]).map(s=>{
     const on=s===eSub;
-    return `<div class="sub-cat-item${on?' on':''}" onclick="selESub('${s}')"><div class="sub-cat-circle${on?' on':''}" style="background:${col}${on?'':'70'}"><span style="font-size:10px;font-weight:700;color:${on?'#555':'#aaa'}">${s}</span></div><span class="sub-cat-name">${s}</span></div>`;
+    return `<div class="sub-cat-item${on?' on':''}" onclick="selESub('${s}')"><div class="sub-cat-circle${on?' on':''}" style="background:${col}${on?'':'70'}"><span style="font-size:10px;font-weight:700;color:${on?'#fff':'#9e9890'}">${s}</span></div><span class="sub-cat-name">${s}</span></div>`;
   }).join('');
 }
 function selEBig(c){eBig=c;eSub=(CATS[eType][c]||[])[0]||c;buildECatUI();}
 function selESub(s){eSub=s;buildECatUI();}
-
-function saveRecEdit(){
+async function saveRecEdit(){
   const r=recs[editRecIdx];
   if(eType==='xfr'){
     r.type='xfr';r.amount=parseFloat(kbVal)||0;
@@ -1158,28 +1387,47 @@ function saveRecEdit(){
     r.member=document.getElementById('e-member').value;
     r.note=document.getElementById('e-note').value;
   }
-  closeSubPage(editSpId);renderRecs();
+  await fbSaveRec(r);
+  closeSP(editSpId);closeKb();renderRecs();
   if(editSpId==='sp-acc-rec-edit')renderAccDetList();
 }
-
-function deleteRec(){
-  if(confirm('確定刪除這筆記錄？')){recs.splice(editRecIdx,1);closeSubPage(editSpId);renderRecs();}
+async function deleteRec(spId){
+  if(!confirm('確定刪除這筆記錄？'))return;
+  await fbDeleteRec(recs[editRecIdx]);
+  recs.splice(editRecIdx,1);
+  closeSP(spId);closeKb();renderRecs();
+  if(spId==='sp-acc-rec-edit')renderAccDetList();
 }
 
-// ═══════════════════════════════════════
-// KEYBOARD
-// ═══════════════════════════════════════
+/* ══════════════════════════════════
+   KEYBOARD
+══════════════════════════════════ */
+function buildKb(kbElId){
+  const el=document.getElementById(kbElId);if(!el)return;
+  el.innerHTML=`<div class="kb-grid">
+    <button class="kb-btn" onclick="kp('7')">7</button><button class="kb-btn" onclick="kp('8')">8</button><button class="kb-btn" onclick="kp('9')">9</button><button class="kb-btn ka" onclick="kp('del')">⌫</button>
+    <button class="kb-btn" onclick="kp('4')">4</button><button class="kb-btn" onclick="kp('5')">5</button><button class="kb-btn" onclick="kp('6')">6</button><button class="kb-btn ka" onclick="kp('.')">.</button>
+    <button class="kb-btn" onclick="kp('1')">1</button><button class="kb-btn" onclick="kp('2')">2</button><button class="kb-btn" onclick="kp('3')">3</button><button class="kb-btn ka" onclick="kp('00')">00</button>
+    <button class="kb-btn kz" onclick="kp('0')">0</button><button class="kb-btn kc" onclick="closeKb()">確定</button>
+  </div>`;
+}
 function openKb(ctx){
   kbCtx=ctx;
-  document.getElementById('kb-backdrop').classList.add('open');
-  document.getElementById('kb-panel').classList.add('open');
-  const id=ctx==='add'?(addType==='xfr'?'add-xamt-val':'add-amt-val'):(eType==='xfr'?'e-xamt-val':'e-amt-val');
-  const el=document.getElementById(id);if(el)el.classList.add('focused');
+  // determine which kb element to use
+  const kbId = ctx==='add'?'kb-add':editKbId;
+  buildKb(kbId);
+  document.getElementById(kbId).classList.add('open');
+  // focus amt display
+  const isXfr = ctx==='add'?addType==='xfr':eType==='xfr';
+  const amtId = ctx==='add'?(isXfr?'add-xamt-val':'add-amt-val'):(isXfr?'e-xamt-val':'e-amt-val');
+  kbAmtId=amtId;
+  const el=document.getElementById(amtId);if(el)el.classList.add('focused');
 }
 function closeKb(){
-  document.getElementById('kb-backdrop').classList.remove('open');
-  document.getElementById('kb-panel').classList.remove('open');
-  ['add-amt-val','add-xamt-val','e-amt-val','e-xamt-val'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('focused');});
+  ['kb-add','kb-re','kb-cre','kb-are'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.classList.remove('open');
+  });
+  document.querySelectorAll('.amt-val').forEach(el=>el.classList.remove('focused'));
 }
 function kp(k){
   if(k==='del')kbVal=kbVal.length>1?kbVal.slice(0,-1):'0';
@@ -1187,31 +1435,17 @@ function kp(k){
   else if(k==='00')kbVal=kbVal==='0'?'0':kbVal+'00';
   else kbVal=kbVal==='0'?k:kbVal+k;
   const v=parseFloat(kbVal)||0;
-  ['add-amt-val','add-xamt-val','e-amt-val','e-xamt-val'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=v.toLocaleString()+(kbVal.endsWith('.')?'.':'');});
+  const disp=v.toLocaleString()+(kbVal.endsWith('.')?'.':'');
+  const el=document.getElementById(kbAmtId);if(el)el.textContent=disp;
+  // also update both amt displays in case
+  ['add-amt-val','add-xamt-val','e-amt-val','e-xamt-val'].forEach(id=>{
+    const e=document.getElementById(id);if(e&&e.classList.contains('focused'))e.textContent=disp;
+  });
 }
 
-// ═══════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════
-// hook up settings sub-pages
-document.getElementById('sp-members').addEventListener('transitionend',()=>{});
-document.querySelectorAll('#pg-settings .sub-page').forEach(sp=>{
-  // handled by openSP / closeSubPage
-});
-// open settle and cats properly
-const origOpenSP=openSP;
-window.openSPCats=()=>{openSP('sp-cats');renderCats();};
-window.openSPSettle=()=>{openSP('sp-settle');renderSettle();};
-window.openSPMembers=()=>{openSP('sp-members');renderMemList();};
-
-// override menu items
-document.querySelectorAll('#pg-settings .menu-item').forEach(item=>{
-  const onclick=item.getAttribute('onclick');
-  if(onclick&&onclick.includes('sp-members'))item.setAttribute('onclick',"openSPMembers()");
-  if(onclick&&onclick.includes('sp-cats'))item.setAttribute('onclick',"openSPCats()");
-  if(onclick&&onclick.includes('sp-settle'))item.setAttribute('onclick',"openSPSettle()");
-});
-
+/* ══════════════════════════════════
+   INIT
+══════════════════════════════════ */
 renderRecs();
 renderSettings();
 updateAddSelects();
