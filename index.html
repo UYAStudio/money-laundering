@@ -30,12 +30,17 @@
   window._fbReady = false;
   window._fbCols = { recs: 'records', members: 'members', accounts: 'accounts' };
 
-  signInAnonymously(auth).then(()=>{
+  signInAnonymously(auth).catch(e=>console.error('FB auth error',e));
+
+  onAuthStateChanged(auth, user=>{
+    if(!user) return;
     window._fbReady = true;
-    window._fbUID = auth.currentUser?.uid;
+    window._fbUID = user.uid;
     console.log('Firebase ready, uid:', window._fbUID);
+    // wait for main script to define _onFbReady
     if(window._onFbReady) window._onFbReady();
-  }).catch(e=>console.error('FB auth error',e));
+    else window.addEventListener('fbReadyCallback', ()=>window._onFbReady&&window._onFbReady(), {once:true});
+  });
 
   window._fbSave = async (col, data) => {
     if(!window._fbReady) return null;
@@ -791,6 +796,8 @@ window._onFbReady = async ()=>{
     updateFbStatus(true);
   } catch(e){ console.error(e); updateFbStatus(false); }
 };
+// notify module script that _onFbReady is ready
+window.dispatchEvent(new Event('fbReadyCallback'));
 
 async function fbSaveRec(r){
   if(!window._fbReady)return;
