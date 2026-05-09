@@ -92,7 +92,7 @@
   --g-inc:linear-gradient(135deg,#f5f5f5,#efefef);
   --g-xfr:linear-gradient(135deg,#f5f5f5,#efefef);
   --g-acc:linear-gradient(135deg,#f0a050,#e08838);
-  --g-head:linear-gradient(135deg,#e0a060,#c88848,#a07830);
+  --g-head:linear-gradient(135deg,#6090c8,#4878b0,#3060a0);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overflow:hidden;height:100vh;display:flex;justify-content:center}
@@ -142,8 +142,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 ══════════════════════════════════ */
 .page{display:none;flex-direction:column;height:calc(100vh - 66px);overflow:hidden}
 .page.active{display:flex}
-.sub-page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:20;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);display:none}
-.sub-page.open{display:flex;transform:translateX(0)}
+.sub-page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:20;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;pointer-events:none;visibility:hidden}
+.sub-page.open{transform:translateX(0);pointer-events:auto;visibility:visible}
 .sub-body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;flex:1}
 
 /* ══════════════════════════════════
@@ -335,7 +335,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
    SETTINGS PAGE
 ══════════════════════════════════ */
 .settings-scroll{overflow-y:auto;flex:1;padding-bottom:20px}
-.family-card{margin:14px 18px 0;background:linear-gradient(135deg,#e0a060,#c88848,#a07830);border-radius:18px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.family-card{margin:14px 18px 0;background:linear-gradient(135deg,#6090c8,#4878b0,#3060a0);border-radius:18px;padding:18px;color:#fff;position:relative;overflow:hidden}
 .family-card::after{content:'';position:absolute;top:-28px;right:-28px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.12)}
 .family-name{font-size:17px;font-weight:700;margin-bottom:2px}
 .family-sub{font-size:12px;opacity:.85;font-weight:600}
@@ -357,8 +357,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 /* ══════════════════════════════════
    ADD / SLIDE-UP PAGE
 ══════════════════════════════════ */
-.slide-up-page{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:30;flex-direction:column;transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);overflow:hidden}
-.slide-up-page.open{display:flex;transform:translateY(0)}
+.slide-up-page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:30;flex-direction:column;transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);overflow:hidden;display:flex;pointer-events:none;visibility:hidden}
+.slide-up-page.open{transform:translateY(0);pointer-events:auto;visibility:visible}
 
 /* ══════════════════════════════════
    KEYBOARD
@@ -525,8 +525,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
   <div class="nav"><span class="nav-title">更多</span></div>
   <div class="settings-scroll">
     <div class="family-card">
-      <div class="family-name">我的家庭帳本</div>
-      <div class="family-sub">共同記帳</div>
+      <div class="family-name" id="family-name-txt" onclick="editFamilyName()" style="cursor:pointer;border-bottom:1.5px dashed rgba(255,255,255,0.5);display:inline-block;padding-bottom:1px">我的家庭帳本</div>
+      <div class="family-sub">共同記帳 <span style="opacity:.6;font-size:10px">（點擊編輯名稱）</span></div>
       <div class="family-members" id="family-members"></div>
     </div>
     <div class="settings-sec" style="margin-top:18px">
@@ -641,6 +641,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
     <div class="big-cat-tabs" id="add-big-tabs"></div>
     <div class="sub-cat-grid" id="add-sub-grid"></div>
     <div class="edit-fields">
+      <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="add-date" type="date" style="color:var(--tp)"/></div>
       <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="add-note" type="text" placeholder="選填"/></div>
       <div class="ef-row"><span class="ef-label">成員</span><select class="ef-select" id="add-member"></select></div>
       <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="add-payer"></select></div>
@@ -654,6 +655,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
     <div class="xfr-arrow-row"><div class="xfr-field"><select id="add-xfa"></select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="add-xta"></select></div></div>
     <div class="xfr-lbl" style="margin-top:6px">成員互轉</div>
     <div class="xfr-arrow-row"><div class="xfr-field"><select id="add-xfm"></select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="add-xtm"></select></div></div>
+    <div class="ef-row" style="margin-top:4px"><span class="ef-label">日期</span><input class="ef-input" id="add-xdate" type="date" style="color:var(--tp)"/></div>
     <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="add-xnote" type="text" placeholder="選填"/></div>
     <div style="padding:10px 0 0"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
   </div>
@@ -878,14 +880,12 @@ function selectMonth(m){
 function openSP(id){
   const el=document.getElementById(id);
   if(!el)return;
-  el.style.display='flex';
-  requestAnimationFrame(()=>{ el.classList.add('open'); });
+  el.classList.add('open');
 }
 function closeSP(id){
   const el=document.getElementById(id);
   if(!el)return;
   el.classList.remove('open');
-  setTimeout(()=>{ if(!el.classList.contains('open')) el.style.display='none'; },300);
 }
 function openSettingsSP(id){openSP(id);}
 
@@ -1254,6 +1254,11 @@ function openAdd(){
   document.getElementById('add-amt-val').textContent='0';
   document.getElementById('add-xamt-val').textContent='0';
   document.getElementById('add-note').value='';
+  // set today's date
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  document.getElementById('add-date').value=todayStr;
+  document.getElementById('add-xdate').value=todayStr;
   setAddType('exp');updateAddSelects();
   document.getElementById('pg-add').classList.add('open');
 }
@@ -1288,14 +1293,14 @@ function updateAddSelects(){
   ['add-member','add-payer','add-xfm','add-xtm'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=memOpts;});
 }
 async function saveNewRec(){
-  const today=new Date();
-  const dateStr=`${curMonth}-${String(today.getDate()).padStart(2,'0')}`;
   let r;
   if(addType==='xfr'){
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
+    const dateStr=document.getElementById('add-xdate').value||curMonth+'-01';
     r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:document.getElementById('add-xfa').value,toAcc:document.getElementById('add-xta').value,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''};
   } else {
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
+    const dateStr=document.getElementById('add-date').value||curMonth+'-01';
     r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:document.getElementById('add-acc').value,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
   }
   recs.unshift(r);await fbSaveRec(r);
@@ -1310,17 +1315,19 @@ function openRecEdit(gi,spId,contentId,kbId){
   const r=recs[gi];eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;kbVal=String(r.amount);
   const accOpts=accounts.map(a=>`<option>${a.name}</option>`).join('');
   const memOpts=members.map(m=>`<option>${m.name}</option>`).join('');
+  const pfx=contentId; // use contentId as scope prefix
   document.getElementById(contentId).innerHTML=`
     <div class="type-seg" style="margin:12px 18px 0">
-      <button class="type-seg-btn on-exp" id="et-exp" onclick="setEType('exp')">支出</button>
-      <button class="type-seg-btn" id="et-inc" onclick="setEType('inc')" style="color:var(--ts);background:var(--bg)">收入</button>
-      <button class="type-seg-btn" id="et-xfr" onclick="setEType('xfr')" style="color:var(--ts);background:var(--bg)">轉帳</button>
+      <button class="type-seg-btn on-exp" id="${pfx}-et-exp" onclick="setEType('exp')">支出</button>
+      <button class="type-seg-btn" id="${pfx}-et-inc" onclick="setEType('inc')" style="color:var(--ts);background:var(--bg)">收入</button>
+      <button class="type-seg-btn" id="${pfx}-et-xfr" onclick="setEType('xfr')" style="color:var(--ts);background:var(--bg)">轉帳</button>
     </div>
-    <div id="en-normal" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
-      <div class="amt-section" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-amt-val">${fmt(r.amount)}</div></div>
-      <div class="big-cat-tabs" id="e-big-tabs"></div>
-      <div class="sub-cat-grid" id="e-sub-grid"></div>
+    <div id="${pfx}-en-normal" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
+      <div class="amt-section" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="${pfx}-e-amt-val">${fmt(r.amount)}</div></div>
+      <div class="big-cat-tabs" id="${pfx}-e-big-tabs"></div>
+      <div class="sub-cat-grid" id="${pfx}-e-sub-grid"></div>
       <div class="edit-fields">
+        <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="e-date" type="date" value="${r.date}" style="color:var(--tp)"/></div>
         <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="e-note" placeholder="選填" value="${r.note||''}"/></div>
         <div class="ef-row"><span class="ef-label">成員</span><select class="ef-select" id="e-member">${memOpts}</select></div>
         <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="e-payer">${memOpts}</select></div>
@@ -1328,12 +1335,13 @@ function openRecEdit(gi,spId,contentId,kbId){
       </div>
       <div style="padding:10px 18px 16px"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
     </div>
-    <div id="en-xfr" class="xfr-form">
-      <div class="amt-section" style="padding:0 0 10px" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="e-xamt-val">${fmt(r.amount)}</div></div>
+    <div id="${pfx}-en-xfr" class="xfr-form">
+      <div class="amt-section" style="padding:0 0 10px" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="${pfx}-e-xamt-val">${fmt(r.amount)}</div></div>
       <div class="xfr-lbl">帳戶轉帳</div>
       <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfa">${accOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xta">${accOpts}</select></div></div>
       <div class="xfr-lbl" style="margin-top:6px">成員互轉</div>
       <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfm">${memOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xtm">${memOpts}</select></div></div>
+      <div class="ef-row" style="margin-top:4px"><span class="ef-label">日期</span><input class="ef-input" id="e-xdate" type="date" value="${r.date}" style="color:var(--tp)"/></div>
       <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="e-xnote" placeholder="選填" value="${r.note||''}"/></div>
       <div style="padding:10px 0 0"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
     </div>`;
@@ -1347,13 +1355,14 @@ function openRecEdit(gi,spId,contentId,kbId){
 function sv(id,val){const el=document.getElementById(id);if(!el)return;for(let o of el.options){if(o.text===val){el.value=o.value;return;}}}
 function setEType(t,rebuild=true){
   eType=t;
+  const p=editContentId||'re-content';
   ['exp','inc','xfr'].forEach(x=>{
-    const b=document.getElementById('et-'+x);if(!b)return;
+    const b=document.getElementById(p+'-et-'+x);if(!b)return;
     b.className='type-seg-btn'+(t===x?' on-'+x:'');
     if(t!==x)b.style.cssText='color:var(--ts);background:var(--bg)';else b.style.cssText='';
   });
-  const nn=document.getElementById('en-normal');if(nn)nn.style.display=t==='xfr'?'none':'flex';
-  const nx=document.getElementById('en-xfr');if(nx)nx.className='xfr-form'+(t==='xfr'?' show':'');
+  const nn=document.getElementById(p+'-en-normal');if(nn)nn.style.display=t==='xfr'?'none':'flex';
+  const nx=document.getElementById(p+'-en-xfr');if(nx)nx.className='xfr-form'+(t==='xfr'?' show':'');
   if(t!=='xfr'&&rebuild){
     const cats=CATS[t]||CATS.exp;
     eBig=Object.keys(cats)[0];eSub=cats[eBig][0];buildECatUI();
@@ -1363,7 +1372,8 @@ function setEType(t,rebuild=true){
 }
 function buildECatUI(){
   const src=CATS[eType]||CATS.exp;
-  const bt=document.getElementById('e-big-tabs');const sg=document.getElementById('e-sub-grid');if(!bt||!sg)return;
+  const p=editContentId||'re-content';
+  const bt=document.getElementById(p+'-e-big-tabs');const sg=document.getElementById(p+'-e-sub-grid');if(!bt||!sg)return;
   bt.innerHTML=Object.keys(src).map(c=>`<div class="big-cat-tab${c===eBig?' on':''}" onclick="selEBig('${c}')">${c}</div>`).join('');
   const col=CAT_COL[eBig]||'#9e9890';
   sg.innerHTML=(src[eBig]||[]).map(s=>{
@@ -1377,11 +1387,13 @@ async function saveRecEdit(){
   const r=recs[editRecIdx];
   if(eType==='xfr'){
     r.type='xfr';r.amount=parseFloat(kbVal)||0;
+    const xd=document.getElementById('e-xdate');r.date=xd?.value||r.date;
     r.fromAcc=document.getElementById('e-xfa').value;r.toAcc=document.getElementById('e-xta').value;
     r.fromMem=document.getElementById('e-xfm').value;r.toMem=document.getElementById('e-xtm').value;
     r.note=document.getElementById('e-xnote').value;
   } else {
     r.type=eType;r.cat=eBig;r.sub=eSub;r.amount=parseFloat(kbVal)||0;
+    const ed=document.getElementById('e-date');r.date=ed?.value||r.date;
     r.account=document.getElementById('e-acc').value;
     r.payer=document.getElementById('e-payer').value;
     r.member=document.getElementById('e-member').value;
@@ -1419,7 +1431,8 @@ function openKb(ctx){
   document.getElementById(kbId).classList.add('open');
   // focus amt display
   const isXfr = ctx==='add'?addType==='xfr':eType==='xfr';
-  const amtId = ctx==='add'?(isXfr?'add-xamt-val':'add-amt-val'):(isXfr?'e-xamt-val':'e-amt-val');
+  const p=editContentId||'re-content';
+  const amtId = ctx==='add'?(isXfr?'add-xamt-val':'add-amt-val'):(isXfr?p+'-e-xamt-val':p+'-e-amt-val');
   kbAmtId=amtId;
   const el=document.getElementById(amtId);if(el)el.classList.add('focused');
 }
@@ -1438,9 +1451,20 @@ function kp(k){
   const disp=v.toLocaleString()+(kbVal.endsWith('.')?'.':'');
   const el=document.getElementById(kbAmtId);if(el)el.textContent=disp;
   // also update both amt displays in case
-  ['add-amt-val','add-xamt-val','e-amt-val','e-xamt-val'].forEach(id=>{
-    const e=document.getElementById(id);if(e&&e.classList.contains('focused'))e.textContent=disp;
-  });
+  document.querySelectorAll('.amt-val.focused').forEach(e=>{e.textContent=disp;});
+}
+
+/* ══════════════════════════════════
+   FAMILY NAME
+══════════════════════════════════ */
+function editFamilyName(){
+  const el=document.getElementById('family-name-txt');
+  const cur=el.textContent.replace('（點擊編輯名稱）','').trim();
+  const name=prompt('帳本名稱：',cur);
+  if(name&&name.trim()){
+    el.textContent=name.trim();
+    document.getElementById('family-name-txt').textContent=name.trim();
+  }
 }
 
 /* ══════════════════════════════════
