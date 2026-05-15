@@ -751,7 +751,8 @@ let recs=[
   {date:'2026-03-08',type:'exp',cat:'教育',sub:'補習',amount:2550,account:'聆的現金',payer:'聆',member:'蹦蹦',note:'學費'},
 ];
 
-let curPage='records', curMonth='2026-03', rTab='all', chartType='exp', selDate=null;
+const _now=new Date();
+let curPage='records', curMonth=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`, rTab='all', chartType='exp', selDate=null;
 let editRecIdx=null, editSpId='', editKbId='', editContentId='';
 let addType='exp', addBig='吃喝', addSub='早餐';
 let editBig=null, editBigType='exp', editSubIdx=null;
@@ -777,20 +778,19 @@ function updateFbStatus(ok){
 
 window._onFbReady = async ()=>{
   updateFbStatus(true);
-  // Load data from Firebase
   try{
     const fbRecs = await window._fbGetAll('records');
-    if(fbRecs.length>0){
-      recs = fbRecs.map(r=>({...r}));
-    } else {
-      // seed initial data
-      for(const r of recs){ await window._fbSave('records', r); }
-    }
+    // always use Firebase data, even if empty (don't re-seed)
+    recs = fbRecs.map(r=>({...r}));
+
     const fbAccs = await window._fbGetAll('accounts');
     if(fbAccs.length>0) accounts = fbAccs.map(a=>({...a}));
+
     const fbMems = await window._fbGetAll('members');
     if(fbMems.length>0) members = fbMems.map(m=>({...m}));
+
     renderRecs();
+    renderChart();
     renderSettings();
     updateAddSelects();
     updateFbStatus(true);
@@ -847,7 +847,7 @@ function syncMonthLabels(){
 }
 function chgMonth(d){
   const[y,m]=curMonth.split('-').map(Number);let ny=y,nm=m;
-  if(d===0){ny=2026;nm=3;}else{nm+=d;if(nm>12){nm=1;ny++;}if(nm<1){nm=12;ny--;}}
+  if(d===0){const n=new Date();ny=n.getFullYear();nm=n.getMonth()+1;}else{nm+=d;if(nm>12){nm=1;ny++;}if(nm<1){nm=12;ny--;}}
   curMonth=`${ny}-${String(nm).padStart(2,'0')}`;
   selDate=null;
   syncMonthLabels();renderRecs();
