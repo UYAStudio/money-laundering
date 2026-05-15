@@ -365,17 +365,16 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 .slide-up-page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:30;flex-direction:column;transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);overflow:hidden;display:flex;pointer-events:none;visibility:hidden}
 .slide-up-page.open{transform:translateY(0);pointer-events:auto;visibility:visible}
 
-/* ══════════════════════════════════
-   KEYBOARD
-══════════════════════════════════ */
+/* keyboard */
 .kb-overlay{position:absolute;bottom:0;left:0;width:100%;background:var(--card);border-top:1px solid var(--bd);border-radius:18px 18px 0 0;z-index:50;padding:10px 12px 22px;display:none}
 .kb-overlay.open{display:block}
+.kb-expr{font-size:13px;font-weight:600;color:var(--ts);min-height:18px;margin-bottom:6px;padding:0 4px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.kb-btn{padding:15px 8px;border-radius:12px;border:none;background:var(--bg);font-size:18px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--tp);transition:background .1s}
+.kb-btn{padding:14px 8px;border-radius:12px;border:none;background:var(--bg);font-size:17px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--tp);transition:background .1s;line-height:1}
 .kb-btn:active{background:#dedad4}
-.kb-btn.ka{background:#ede8e2;color:#7a7060}
-.kb-btn.kc{background:var(--g-acc);color:#fff;font-size:14px}
-.kb-btn.kz{grid-column:span 2}
+.kb-btn.ka{background:#ede8e2;color:#7a7060;font-size:15px}
+.kb-btn.kop{background:#f0ede8;color:#c07840;font-size:18px}
+.kb-btn.kc{background:var(--g-acc);color:#fff;font-size:14px;font-weight:700}
 </style>
 </head>
 <body>
@@ -1418,28 +1417,92 @@ async function deleteRec(spId){
   if(spId==='sp-acc-rec-edit')renderAccDetList();
 }
 
+
 /* ══════════════════════════════════
-   KEYBOARD
+   KEYBOARD (calculator)
 ══════════════════════════════════ */
+let kbExpr='0';
+
 function buildKb(kbElId){
   const el=document.getElementById(kbElId);if(!el)return;
-  el.innerHTML=`<div class="kb-grid">
-    <button class="kb-btn" onclick="kp('7')">7</button><button class="kb-btn" onclick="kp('8')">8</button><button class="kb-btn" onclick="kp('9')">9</button><button class="kb-btn ka" onclick="kp('del')">⌫</button>
-    <button class="kb-btn" onclick="kp('4')">4</button><button class="kb-btn" onclick="kp('5')">5</button><button class="kb-btn" onclick="kp('6')">6</button><button class="kb-btn ka" onclick="kp('.')">.</button>
-    <button class="kb-btn" onclick="kp('1')">1</button><button class="kb-btn" onclick="kp('2')">2</button><button class="kb-btn" onclick="kp('3')">3</button><button class="kb-btn ka" onclick="kp('00')">00</button>
-    <button class="kb-btn kz" onclick="kp('0')">0</button><button class="kb-btn kc" onclick="closeKb()">確定</button>
-  </div>`;
+  el.innerHTML=`
+    <div class="kb-expr" id="${kbElId}-expr"></div>
+    <div class="kb-grid">
+      <button class="kb-btn ka" onclick="kp('AC')">AC</button>
+      <button class="kb-btn ka" onclick="kp('del')">⌫</button>
+      <button class="kb-btn ka" onclick="kp('%')">%</button>
+      <button class="kb-btn kop" onclick="kp('÷')">÷</button>
+      <button class="kb-btn" onclick="kp('7')">7</button>
+      <button class="kb-btn" onclick="kp('8')">8</button>
+      <button class="kb-btn" onclick="kp('9')">9</button>
+      <button class="kb-btn kop" onclick="kp('×')">×</button>
+      <button class="kb-btn" onclick="kp('4')">4</button>
+      <button class="kb-btn" onclick="kp('5')">5</button>
+      <button class="kb-btn" onclick="kp('6')">6</button>
+      <button class="kb-btn kop" onclick="kp('-')">−</button>
+      <button class="kb-btn" onclick="kp('1')">1</button>
+      <button class="kb-btn" onclick="kp('2')">2</button>
+      <button class="kb-btn" onclick="kp('3')">3</button>
+      <button class="kb-btn kop" onclick="kp('+')">+</button>
+      <button class="kb-btn kz" onclick="kp('0')">0</button>
+      <button class="kb-btn" onclick="kp('.')">.</button>
+      <button class="kb-btn kc" onclick="kbConfirm()">確定</button>
+    </div>`;
+  updateKbDisplay(kbElId);
 }
+
+function evalExpr(expr){
+  try{
+    const e=expr.replace(/÷/g,'/').replace(/×/g,'*').replace(/−/g,'-');
+    const result=Function('"use strict";return ('+e+')')();
+    if(typeof result==='number'&&isFinite(result)) return Math.round(result*100)/100;
+    return 0;
+  }catch(e){return 0;}
+}
+
+function updateKbDisplay(kbElId){
+  const exprEl=document.getElementById(kbElId+'-expr');
+  if(exprEl) exprEl.textContent=kbExpr==='0'?'':kbExpr;
+  const v=evalExpr(kbExpr);
+  kbVal=String(v);
+  document.querySelectorAll('.amt-val.focused').forEach(e=>{e.textContent=v===0?'0':v.toLocaleString();});
+}
+
+function kp(k){
+  const ops=['÷','×','+','-'];
+  const lastChar=kbExpr.slice(-1);
+  if(k==='AC'){kbExpr='0';}
+  else if(k==='del'){kbExpr=kbExpr.length>1?kbExpr.slice(0,-1):'0';}
+  else if(k==='%'){const v=evalExpr(kbExpr);kbExpr=String(v/100);}
+  else if(ops.includes(k)){
+    if(ops.includes(lastChar))kbExpr=kbExpr.slice(0,-1)+k;
+    else kbExpr+=k;
+  }
+  else if(k==='.'){
+    const parts=kbExpr.split(/[÷×+\-]/);
+    if(!parts[parts.length-1].includes('.'))kbExpr+='.';
+  }
+  else{kbExpr=kbExpr==='0'?k:kbExpr+k;}
+  const kbId=kbCtx==='add'?'kb-add':editKbId;
+  updateKbDisplay(kbId);
+}
+
+function kbConfirm(){
+  const v=evalExpr(kbExpr);
+  kbVal=String(v);kbExpr=String(v);
+  closeKb();
+}
+
 function openKb(ctx){
   kbCtx=ctx;
-  // determine which kb element to use
-  const kbId = ctx==='add'?'kb-add':editKbId;
+  const kbId=ctx==='add'?'kb-add':editKbId;
+  // reset expr to current value
+  kbExpr=parseFloat(kbVal)>0?kbVal:'0';
   buildKb(kbId);
   document.getElementById(kbId).classList.add('open');
-  // focus amt display
-  const isXfr = ctx==='add'?addType==='xfr':eType==='xfr';
+  const isXfr=ctx==='add'?addType==='xfr':eType==='xfr';
   const p=editContentId||'re-content';
-  const amtId = ctx==='add'?(isXfr?'add-xamt-val':'add-amt-val'):(isXfr?p+'-e-xamt-val':p+'-e-amt-val');
+  const amtId=ctx==='add'?(isXfr?'add-xamt-val':'add-amt-val'):(isXfr?p+'-e-xamt-val':p+'-e-amt-val');
   kbAmtId=amtId;
   const el=document.getElementById(amtId);if(el)el.classList.add('focused');
 }
@@ -1449,17 +1512,7 @@ function closeKb(){
   });
   document.querySelectorAll('.amt-val').forEach(el=>el.classList.remove('focused'));
 }
-function kp(k){
-  if(k==='del')kbVal=kbVal.length>1?kbVal.slice(0,-1):'0';
-  else if(k==='.')kbVal=kbVal.includes('.')?kbVal:kbVal+'.';
-  else if(k==='00')kbVal=kbVal==='0'?'0':kbVal+'00';
-  else kbVal=kbVal==='0'?k:kbVal+k;
-  const v=parseFloat(kbVal)||0;
-  const disp=v.toLocaleString()+(kbVal.endsWith('.')?'.':'');
-  const el=document.getElementById(kbAmtId);if(el)el.textContent=disp;
-  // also update both amt displays in case
-  document.querySelectorAll('.amt-val.focused').forEach(e=>{e.textContent=disp;});
-}
+
 
 /* ══════════════════════════════════
    FAMILY NAME
