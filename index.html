@@ -286,6 +286,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 .dlpc{display:table-cell;vertical-align:middle;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap}
 .dlac{display:table-cell;vertical-align:middle;font-size:11px;font-weight:600;color:var(--ts);padding-left:8px;text-align:right;white-space:nowrap}
 .sec-title{font-size:12px;font-weight:700;color:var(--ts);letter-spacing:.4px;padding:0 18px 8px}
+.dim-chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--bd);background:var(--card);color:var(--ts);cursor:pointer;white-space:nowrap;transition:all .15s;font-family:'Nunito',sans-serif}
+.dim-chip.on{background:#f0a050;color:#fff;border-color:#f0a050}
 .cat-card{background:var(--card);border-radius:13px;border:1px solid var(--bd);padding:11px 13px;margin:0 18px 7px;cursor:pointer;transition:transform .12s}
 .cat-card:hover{transform:translateX(2px)}
 .cat-top{display:flex;align-items:center;gap:10px}
@@ -445,10 +447,15 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <button class="type-seg-btn on-exp" id="ct-exp" onclick="setChartType('exp')" style="flex:1;border-radius:13px;border:1px solid var(--bd)">支出</button>
       <button class="type-seg-btn" id="ct-inc" onclick="setChartType('inc')" style="flex:1;border-radius:13px;border:1px solid var(--bd);color:var(--ts);background:var(--bg)">收入</button>
     </div>
+    <div style="display:flex;gap:6px;padding:8px 18px 0;overflow-x:auto;scrollbar-width:none">
+      <button class="dim-chip on" id="dim-cat" onclick="setChartDim('cat')">分類</button>
+      <button class="dim-chip" id="dim-mem" onclick="setChartDim('mem')">成員花費</button>
+      <button class="dim-chip" id="dim-pay" onclick="setChartDim('pay')">成員付款</button>
+    </div>
     <div class="stats-row" id="chart-stats"></div>
     <div class="donut-sec">
       <div class="donut-inner">
-        <div class="donut-wrap"><canvas id="donut-canvas" width="140" height="140"></canvas><div class="donut-center"><div class="donut-cl">合計</div><div class="donut-cv" id="donut-total">NT$0</div></div></div>
+        <div class="donut-wrap"><canvas id="donut-canvas" width="140" height="140"></canvas><div class="donut-center"><div class="donut-cl" id="donut-center-lbl">合計</div><div class="donut-cv" id="donut-total">NT$0</div></div></div>
         <table class="dleg" id="donut-legend"></table>
       </div>
     </div>
@@ -759,7 +766,7 @@ let editAccIdx=null, accPickCol=PAL[0], accDetIdx=null;
 let editMemIdx=null, memPickCol=PAL[0];
 let kbVal='0', kbCtx='add', kbAmtId='add-amt-val';
 let eType='exp', eBig='吃喝', eSub='早餐';
-let donutChart=null, accDonutChart=null;
+let donutChart=null, accDonutChart=null, chartDim='cat';
 let mpYear=2026;
 
 const fmt=n=>'NT$'+Math.round(Math.abs(n)).toLocaleString();
@@ -987,6 +994,15 @@ function renderRecList(tabData){
 /* ══════════════════════════════════
    CHART
 ══════════════════════════════════ */
+function setChartDim(d){
+  chartDim=d;
+  ['cat','mem','pay'].forEach(x=>{
+    const b=document.getElementById('dim-'+x);
+    if(b){b.className='dim-chip'+(d===x?' on':'');}
+  });
+  renderChart();
+}
+
 function setChartType(t){
   chartType=t;
   const ce=document.getElementById('ct-exp'),ci=document.getElementById('ct-inc');
@@ -1006,19 +1022,51 @@ function renderChart(){
     <div class="stat-card"><div class="stat-lbl">支出合計</div><div class="stat-val" style="color:#b07070">-${fmt(te)}</div></div>
     <div class="stat-card"><div class="stat-lbl">收入合計</div><div class="stat-val" style="color:#6a9a6a">+${fmt(ti)}</div></div>
     <div class="stat-card"><div class="stat-lbl">結餘</div><div class="stat-val" style="color:${bal>=0?'#6a9a6a':'#b07070'}">${bal>=0?'+':'-'}${fmt(Math.abs(bal))}</div></div>`;
-  const src=chartType==='exp'?exps:incs;
-  const ct={};src.forEach(r=>{ct[r.cat]=(ct[r.cat]||{a:0,c:0});ct[r.cat].a+=r.amount;ct[r.cat].c++;});
-  const sorted=Object.entries(ct).sort((a,b)=>b[1].a-a[1].a);
-  const total=sorted.reduce((s,[,v])=>s+v.a,0);
-  const labels=sorted.map(([k])=>k),colors=labels.map(l=>CAT_COL[l]||'#9e9890');
-  document.getElementById('donut-total').textContent=fmt(total);
-  if(donutChart){donutChart.destroy();donutChart=null;}
-  if(total>0){donutChart=new Chart(document.getElementById('donut-canvas'),{type:'doughnut',data:{labels,datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#faf8f6'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});}
-  document.getElementById('donut-legend').innerHTML=sorted.slice(0,5).map(([cat,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${cat}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
-  document.getElementById('chart-cat-list').innerHTML=sorted.map(([cat,v],i)=>{
-    const pct=total>0?(v.a/total*100).toFixed(1):'0.0';
-    return `<div class="cat-card" onclick="openCatDet('${cat}','${colors[i]}')"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt ${chartType==='inc'?'style="color:#6a9a6a"':''}">${chartType==='inc'?'+':'-'}${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
-  }).join('');
+
+  if(chartDim==='cat'){
+    // 原本的分類視角
+    const src=chartType==='exp'?exps:incs;
+    const ct={};src.forEach(r=>{ct[r.cat]=(ct[r.cat]||{a:0,c:0});ct[r.cat].a+=r.amount;ct[r.cat].c++;});
+    const sorted=Object.entries(ct).sort((a,b)=>b[1].a-a[1].a);
+    const total=sorted.reduce((s,[,v])=>s+v.a,0);
+    const labels=sorted.map(([k])=>k),colors=labels.map(l=>CAT_COL[l]||'#9e9890');
+    document.getElementById('donut-total').textContent=fmt(total);
+    document.getElementById('donut-center-lbl').textContent='合計';
+    if(donutChart){donutChart.destroy();donutChart=null;}
+    if(total>0){donutChart=new Chart(document.getElementById('donut-canvas'),{type:'doughnut',data:{labels,datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#fdfcfb'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});}
+    document.getElementById('donut-legend').innerHTML=sorted.slice(0,5).map(([cat,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${cat}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
+    document.getElementById('chart-cat-list').innerHTML=sorted.map(([cat,v],i)=>{
+      const pct=total>0?(v.a/total*100).toFixed(1):'0.0';
+      return `<div class="cat-card" onclick="openCatDet('${cat}','${colors[i]}')"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${cat}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt ${chartType==='inc'?'style="color:#6a9a6a"':''}">${chartType==='inc'?'+':'-'}${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
+    }).join('');
+  } else {
+    // 成員視角（花費 or 付款）
+    const src=chartType==='exp'?exps:incs;
+    const field=chartDim==='pay'?'payer':'member';
+    const MEM_COL={};
+    members.forEach((m,i)=>{MEM_COL[m.name]=PAL[i%PAL.length];});
+    const mt={};
+    src.forEach(r=>{
+      const key=r[field]||'其他';
+      if(!mt[key])mt[key]={a:0,c:0};
+      mt[key].a+=r.amount;mt[key].c++;
+    });
+    const sorted=Object.entries(mt).sort((a,b)=>b[1].a-a[1].a);
+    const total=sorted.reduce((s,[,v])=>s+v.a,0);
+    const colors=sorted.map(([k])=>MEM_COL[k]||'#9e9890');
+    document.getElementById('donut-total').textContent=fmt(total);
+    document.getElementById('donut-center-lbl').textContent=chartDim==='pay'?'付款':'花費';
+    if(donutChart){donutChart.destroy();donutChart=null;}
+    if(total>0){donutChart=new Chart(document.getElementById('donut-canvas'),{type:'doughnut',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v.a),backgroundColor:colors,borderWidth:3,borderColor:'#fdfcfb'}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'62%',animation:{duration:400}}});}
+    document.getElementById('donut-legend').innerHTML=sorted.slice(0,5).map(([mem,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${mem}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
+    // 成員列表（同樣格式，點進去看明細）
+    document.getElementById('chart-cat-list').innerHTML=sorted.map(([mem,v],i)=>{
+      const pct=total>0?(v.a/total*100).toFixed(1):'0.0';
+      const amtCol=chartType==='inc'?'#6a9a6a':'#b07070';
+      const sign=chartType==='inc'?'+':'-';
+      return `<div class="cat-card" onclick="openMemDet('${mem}','${colors[i]}','${field}')"><div class="cat-top"><div class="cat-cdot" style="background:${colors[i]}"></div><div class="cat-main"><span class="cat-name">${mem}</span><span class="cat-cnt">${v.c}筆</span></div><div class="cat-right"><div class="cat-amt" style="color:${amtCol}">${sign}${fmt(v.a)}</div><div class="cat-pct">${pct}%</div></div></div><div class="cat-bar-bg"><div class="cat-bar" style="width:${pct}%;background:${colors[i]}"></div></div></div>`;
+    }).join('');
+  }
 }
 function openCatDet(cat,col){
   document.getElementById('cat-det-title').textContent=cat;
@@ -1035,6 +1083,25 @@ function openCatDet(cat,col){
     });
   });
   document.getElementById('cat-det-list').innerHTML=html;
+  openSP('sp-cat-det');
+}
+
+function openMemDet(mem,col,field){
+  const label=field==='payer'?`${mem} 的付款記錄`:`${mem} 的花費記錄`;
+  document.getElementById('cat-det-title').textContent=label;
+  const src=mRecs().filter(r=>(chartType==='exp'?r.type==='exp':r.type==='inc')&&r[field]===mem);
+  const byD={};src.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
+  const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
+  let html='';
+  dates.forEach(date=>{
+    const dt=byD[date].reduce((s,r)=>chartType==='inc'?s+r.amount:s-r.amount,0);
+    html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span style="font-size:12px;font-weight:700;color:${dt>=0?'#6a9a6a':'#b07070'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
+    byD[date].forEach(r=>{
+      const gi=recs.indexOf(r);
+      html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-chart-rec-edit','cre-content','kb-cre')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${chartType==='inc'?'i':'e'}">${chartType==='inc'?'+':'-'}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+    });
+  });
+  document.getElementById('cat-det-list').innerHTML=html||'<div style="text-align:center;padding:36px;color:var(--ts);font-weight:600">無記錄</div>';
   openSP('sp-cat-det');
 }
 
