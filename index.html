@@ -485,16 +485,46 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="hero-grid">
         <div class="hero-card"><div class="hero-card-lbl">可支配</div><div class="hero-card-val" id="asset-disp" style="color:#6a9a6a">NT$0</div></div>
         <div class="hero-card"><div class="hero-card-lbl">負債</div><div class="hero-card-val" id="asset-liab" style="color:#b07070">NT$0</div></div>
-        <div class="hero-card"><div class="hero-card-lbl">借出</div><div class="hero-card-val" style="color:var(--ts)">NT$0</div></div>
-        <div class="hero-card"><div class="hero-card-lbl">借入</div><div class="hero-card-val" style="color:var(--ts)">NT$0</div></div>
+        <div class="hero-card" onclick="openLoanDet('out')" style="cursor:pointer"><div class="hero-card-lbl">借出 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanout" style="color:#6a9a6a">NT$0</div></div>
+        <div class="hero-card" onclick="openLoanDet('in')" style="cursor:pointer"><div class="hero-card-lbl">借入 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanin" style="color:#b07070">NT$0</div></div>
       </div>
     </div>
     <div id="acc-list"></div>
     <div style="height:16px"></div>
   </div>
+  <!-- Action Sheet -->
+  <div id="acc-action-overlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:60" onclick="closeAccDetMenu()"></div>
+  <div id="acc-action-sheet" style="display:none;position:absolute;bottom:0;left:0;width:100%;z-index:61;padding:0 12px 20px">
+    <div style="background:var(--card);border-radius:16px;overflow:hidden;margin-bottom:8px">
+      <div style="padding:12px 16px;text-align:center;font-size:12px;color:var(--ts);font-weight:600;border-bottom:1px solid var(--bd)" id="acc-action-title">帳戶</div>
+      <button onclick="openUpdateBalance()" style="width:100%;padding:15px;border:none;background:none;font-size:15px;font-weight:600;color:#4878b8;cursor:pointer;font-family:'Nunito',sans-serif;border-bottom:1px solid var(--bd)">更新餘額</button>
+      <button onclick="openAccEditFromDet();closeAccDetMenu()" style="width:100%;padding:15px;border:none;background:none;font-size:15px;font-weight:600;color:var(--tp);cursor:pointer;font-family:'Nunito',sans-serif">編輯帳戶</button>
+    </div>
+    <button onclick="closeAccDetMenu()" style="width:100%;padding:15px;border:none;background:var(--card);border-radius:16px;font-size:15px;font-weight:700;color:var(--tp);cursor:pointer;font-family:'Nunito',sans-serif">取消</button>
+  </div>
+
+  <!-- 更新餘額 sheet -->
+  <div id="update-bal-overlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:62" onclick="closeUpdateBalance()"></div>
+  <div id="update-bal-sheet" style="display:none;position:absolute;bottom:0;left:0;width:100%;z-index:63;padding:0 12px 20px">
+    <div style="background:var(--card);border-radius:16px;overflow:hidden;margin-bottom:8px">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--bd)">
+        <div style="font-size:13px;font-weight:700;text-align:center;margin-bottom:2px" id="update-bal-acc-name">更新餘額</div>
+        <div style="font-size:11px;color:var(--ts);text-align:center">輸入目前實際餘額，系統自動補調整記錄</div>
+      </div>
+      <div style="padding:16px">
+        <div style="font-size:11px;color:var(--ts);font-weight:700;margin-bottom:6px">目前帳戶餘額</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ts);margin-bottom:12px" id="update-bal-cur">NT$0</div>
+        <div style="font-size:11px;color:var(--ts);font-weight:700;margin-bottom:6px">新餘額（NT$）</div>
+        <input id="update-bal-input" type="number" inputmode="decimal" placeholder="輸入實際金額" style="width:100%;padding:10px 14px;border:1.5px solid var(--bd);border-radius:12px;font-size:16px;font-weight:700;color:var(--tp);background:var(--bg);outline:none;font-family:'Nunito',sans-serif"/>
+      </div>
+      <button onclick="confirmUpdateBalance()" style="width:100%;padding:15px;border:none;background:var(--g-acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif">確認更新</button>
+    </div>
+    <button onclick="closeUpdateBalance()" style="width:100%;padding:15px;border:none;background:var(--card);border-radius:16px;font-size:15px;font-weight:700;color:var(--tp);cursor:pointer;font-family:'Nunito',sans-serif">取消</button>
+  </div>
+
   <!-- Acc detail -->
   <div class="sub-page" id="sp-acc-det">
-    <div class="nav"><button class="ib" onclick="closeSP('sp-acc-det')">‹</button><span class="nav-title" id="acc-det-title">帳戶</span><button class="ib" onclick="openAccEditFromDet()">⋯</button></div>
+    <div class="nav"><button class="ib" onclick="closeSP('sp-acc-det')">‹</button><span class="nav-title" id="acc-det-title">帳戶</span><button class="ib" onclick="openAccDetMenu()">⋯</button></div>
     <div class="det-hero">
       <div class="det-hero-lbl">帳戶餘額</div>
       <div class="det-hero-amt" id="acc-det-amt">NT$0</div>
@@ -603,7 +633,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
   <!-- Cats -->
   <div class="sub-page" id="sp-cats">
     <div class="nav"><button class="ib" onclick="closeSP('sp-cats')">‹</button><span class="nav-title">分類設定</span></div>
-    <div class="sub-body">
+    <div class="sub-body" style="overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
       <div class="sec-lbl">支出類別</div>
       <div class="menu-group" id="exp-cat-list"></div>
       <button class="add-row" onclick="openBigCatEdit('exp',null)">+ 新增支出大類</button>
@@ -633,6 +663,20 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
   <div class="sub-page" id="sp-settle">
     <div class="nav"><button class="ib" onclick="closeSP('sp-settle')">‹</button><span class="nav-title">成員分帳結算</span></div>
     <div class="sub-body" id="settle-body"></div>
+  </div>
+  <!-- 借出借入詳情 -->
+  <div class="sub-page" id="sp-loan-det" style="z-index:22">
+    <div class="nav">
+      <button class="ib" onclick="closeSP('sp-loan-det')">‹</button>
+      <span class="nav-title" id="loan-det-title">借出明細</span>
+      <button class="ib" onclick="openAddLoan()" title="新增">+</button>
+    </div>
+    <div style="padding:12px 18px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
+      <div style="font-size:11px;color:var(--ts);font-weight:700;margin-bottom:4px" id="loan-det-lbl">借出總額</div>
+      <div style="font-size:24px;font-weight:700" id="loan-det-total">NT$0</div>
+      <div style="font-size:11px;color:var(--ts);margin-top:4px" id="loan-det-hint"></div>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0 18px 20px" id="loan-det-list"></div>
   </div>
 </div>
 
@@ -740,7 +784,7 @@ let accounts=[
   {name:'街口',type:'wallet',owner:'聆',balance:3185,color:'#ada592'},
 ];
 let CATS={
-  exp:{'吃喝':['早餐','午餐','晚餐','宵夜','飲料','點心','食材','水果','酒'],'交通':['加油','eTag','停車','捷運','公車','火車','高鐵','計程車','保養','維修'],'生活':['清潔','3C用品','服飾','廚房','寢具','日用品'],'醫療':['掛號','藥-吃','藥-擦','預防針','其他'],'教育':['補習','書籍','課程','軟體'],'娛樂':['遊戲','門票','電影票','會員','訂閱'],'固定':['管理費','電費','水費','天然氣','網路','貸款','租金','電話費','汽車清潔','機車清潔'],'代購':['商品','運費','手續費','稅金','儲值','換匯'],'寵物':['飼料','貓砂','醫療','玩具'],'回饋':['優惠','現金回饋'],'其他':['紅包','送禮','其他']},
+  exp:{'吃喝':['早餐','午餐','晚餐','宵夜','飲料','點心','食材','水果','酒'],'交通':['加油','eTag','停車','捷運','公車','火車','高鐵','計程車','保養','維修'],'生活':['清潔','3C用品','服飾','廚房','寢具','日用品'],'醫療':['掛號','藥-吃','藥-擦','預防針','其他'],'教育':['補習','書籍','課程','軟體'],'娛樂':['遊戲','門票','電影票','會員','訂閱'],'固定':['管理費','電費','水費','天然氣','網路','貸款','租金','電話費','汽車清潔','機車清潔'],'代購':['商品','運費','手續費','稅金','儲值','換匯'],'寵物':['飼料','貓砂','醫療','玩具'],'回饋':['優惠','現金回饋'],'其他':['紅包','送禮','借出','借入','其他']},
   inc:{'正職':['薪資','油資','獎金','年終','紅利'],'兼職':['蝦皮','團購','兼職'],'投資':['利息','股息','基金'],'額外':['借','還','媽','爸','其他']}
 };
 let recs=[
@@ -1115,6 +1159,15 @@ function renderAsset(){
   const na=document.getElementById('net-amt');na.textContent=(net<0?'-':'')+fmt(net);na.style.color=net<0?'#b07070':'var(--tp)';
   document.getElementById('asset-disp').textContent=fmt(pos);
   document.getElementById('asset-liab').textContent='-'+fmt(Math.abs(lb));
+  // 借出：你付款給別人，記錄 type=exp, sub 含「借」且 note 記錄對象
+  // 用一個簡單規則：在更多 > 借出借入 手動管理
+  // 這裡從 records 計算：inc 的 sub='借' = 別人還你（減借出）；exp 的 sub='借' = 你借給別人（加借出）
+  const loanOutRecs=recs.filter(r=>r.type==='exp'&&r.sub==='借出');
+  const loanInRecs=recs.filter(r=>r.type==='exp'&&r.sub==='借入');
+  const loanOut=loanOutRecs.reduce((s,r)=>s+r.amount,0);
+  const loanIn=loanInRecs.reduce((s,r)=>s+r.amount,0);
+  document.getElementById('asset-loanout').textContent=fmt(loanOut);
+  document.getElementById('asset-loanin').textContent=fmt(loanIn);
   const order=['cash','bank','card','wallet','virtual'];
   let html='';
   order.forEach(t=>{
@@ -1198,6 +1251,56 @@ function renderAccDetChart(){
     document.getElementById('acc-donut-legend').innerHTML=sorted.slice(0,5).map(([cat,v],i)=>`<tr><td class="dldc"><span class="dldot" style="background:${colors[i]}"></span></td><td class="dlnc">${cat}</td><td class="dlpc">${total>0?(v.a/total*100).toFixed(0):'0'}%</td><td class="dlac">${fmt(v.a)}</td></tr>`).join('');
   }
 }
+function openAccDetMenu(){
+  const a=accounts[accDetIdx];
+  document.getElementById('acc-action-title').textContent=a?a.name:'帳戶';
+  document.getElementById('acc-action-overlay').style.display='block';
+  document.getElementById('acc-action-sheet').style.display='block';
+}
+function closeAccDetMenu(){
+  document.getElementById('acc-action-overlay').style.display='none';
+  document.getElementById('acc-action-sheet').style.display='none';
+}
+function openUpdateBalance(){
+  closeAccDetMenu();
+  const a=accounts[accDetIdx];if(!a)return;
+  document.getElementById('update-bal-acc-name').textContent=a.name+' · 更新餘額';
+  document.getElementById('update-bal-cur').textContent=(a.balance<0?'-':'')+fmt(a.balance);
+  document.getElementById('update-bal-input').value='';
+  document.getElementById('update-bal-overlay').style.display='block';
+  document.getElementById('update-bal-sheet').style.display='block';
+  setTimeout(()=>document.getElementById('update-bal-input').focus(),200);
+}
+function closeUpdateBalance(){
+  document.getElementById('update-bal-overlay').style.display='none';
+  document.getElementById('update-bal-sheet').style.display='none';
+}
+async function confirmUpdateBalance(){
+  const a=accounts[accDetIdx];if(!a)return;
+  const newBal=parseFloat(document.getElementById('update-bal-input').value);
+  if(isNaN(newBal)){alert('請輸入有效金額');return;}
+  const diff=newBal-a.balance;
+  if(diff===0){closeUpdateBalance();return;}
+  // 自動補一筆調整記錄
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const adjRec={
+    date:dateStr,
+    type:diff>0?'inc':'exp',
+    cat:'其他',sub:'餘額調整',
+    amount:Math.abs(diff),
+    account:a.name,payer:a.owner,member:a.owner,
+    note:`更新餘額：${a.balance<0?'-':'+'}${fmt(a.balance)} → ${newBal<0?'-':'+'}${fmt(newBal)}`
+  };
+  recs.unshift(adjRec);
+  await fbSaveRec(adjRec);
+  // 更新帳戶餘額
+  a.balance=newBal;
+  await fbSaveAcc(a);
+  closeUpdateBalance();
+  renderAsset();
+  openAccDet(accDetIdx);
+}
 function openAccEditFromDet(){openAccEdit(accDetIdx);}
 function openAccEdit(i, defaultType='cash'){
   editAccIdx=i;accPickCol=i===null?PAL[0]:accounts[i].color;
@@ -1225,6 +1328,38 @@ async function saveAcc(){
   closeSP('sp-acc-edit');renderAsset();
   if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=obj.name;
 }
+function openLoanDet(type){
+  const isOut=type==='out';
+  const sub=isOut?'借出':'借入';
+  document.getElementById('loan-det-title').textContent=isOut?'借出明細':'借入明細';
+  document.getElementById('loan-det-lbl').textContent=isOut?'借出總額（你借給別人）':'借入總額（別人借給你）';
+  document.getElementById('loan-det-hint').textContent=isOut?'記帳時選「支出 > 其他 > 借出」':'記帳時選「支出 > 其他 > 借入」';
+  const loanRecs=recs.filter(r=>r.type==='exp'&&r.sub===sub);
+  const total=loanRecs.reduce((s,r)=>s+r.amount,0);
+  document.getElementById('loan-det-total').textContent=fmt(total);
+  document.getElementById('loan-det-total').style.color=isOut?'#6a9a6a':'#b07070';
+  const byD={};loanRecs.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
+  const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
+  let html='';
+  if(!loanRecs.length){
+    html='<div style="text-align:center;padding:40px;color:var(--ts);font-size:13px;font-weight:600">尚無記錄<br><span style="font-size:11px;opacity:.7">記帳時選「其他 > '+sub+'」即可</span></div>';
+  } else {
+    dates.forEach(date=>{
+      html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span></div>`;
+      byD[date].forEach(r=>{
+        const gi=recs.indexOf(r);
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-loan-det','are-content','kb-are')">
+          <div class="tx-dot" style="background:${isOut?'#9aad9e':'#b8a99a'}"></div>
+          <div class="tx-info"><div class="tx-name">${r.note||sub}</div><div class="tx-sub">${r.payer} · ${r.account}</div></div>
+          <div class="tx-right"><div class="tx-amt" style="color:${isOut?'#6a9a6a':'#b07070'}">${isOut?'+':'-'}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div>
+        </div>`;
+      });
+    });
+  }
+  document.getElementById('loan-det-list').innerHTML=html;
+  openSP('sp-loan-det');
+}
+
 async function deleteAcc(){
   if(confirm(`確定刪除「${accounts[editAccIdx].name}」？`)){
     await fbDeleteAcc(accounts[editAccIdx]);
