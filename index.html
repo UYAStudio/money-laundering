@@ -485,8 +485,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="hero-grid">
         <div class="hero-card"><div class="hero-card-lbl">可支配</div><div class="hero-card-val" id="asset-disp" style="color:#6a9a6a">NT$0</div></div>
         <div class="hero-card"><div class="hero-card-lbl">負債</div><div class="hero-card-val" id="asset-liab" style="color:#b07070">NT$0</div></div>
-        <div class="hero-card" onclick="openLoanDet('out')" style="cursor:pointer"><div class="hero-card-lbl">借出 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanout" style="color:#6a9a6a">NT$0</div></div>
-        <div class="hero-card" onclick="openLoanDet('in')" style="cursor:pointer"><div class="hero-card-lbl">借入 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanin" style="color:#b07070">NT$0</div></div>
+        <div class="hero-card" onclick="openLoanMgr('out')" style="cursor:pointer"><div class="hero-card-lbl">借出 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanout" style="color:#6a9a6a">NT$0</div></div>
+        <div class="hero-card" onclick="openLoanMgr('in')" style="cursor:pointer"><div class="hero-card-lbl">借入 <span style="font-size:9px;color:var(--ts)">›</span></div><div class="hero-card-val" id="asset-loanin" style="color:#b07070">NT$0</div></div>
       </div>
     </div>
     <div id="acc-list"></div>
@@ -664,19 +664,52 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
     <div class="nav"><button class="ib" onclick="closeSP('sp-settle')">‹</button><span class="nav-title">成員分帳結算</span></div>
     <div class="sub-body" id="settle-body"></div>
   </div>
-  <!-- 借出借入詳情 -->
-  <div class="sub-page" id="sp-loan-det" style="z-index:22">
+  <!-- 借貸管理 -->
+  <div class="sub-page" id="sp-loan-mgr" style="z-index:22">
     <div class="nav">
-      <button class="ib" onclick="closeSP('sp-loan-det')">‹</button>
-      <span class="nav-title" id="loan-det-title">借出明細</span>
-      <button class="ib" onclick="openAddLoan()" title="新增">+</button>
+      <button class="ib" onclick="closeSP('sp-loan-mgr')">‹</button>
+      <span class="nav-title" id="loan-mgr-title">借出管理</span>
+      <button class="ib" onclick="openLoanEdit(null)" style="font-size:20px">+</button>
     </div>
-    <div style="padding:12px 18px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
-      <div style="font-size:11px;color:var(--ts);font-weight:700;margin-bottom:4px" id="loan-det-lbl">借出總額</div>
-      <div style="font-size:24px;font-weight:700" id="loan-det-total">NT$0</div>
-      <div style="font-size:11px;color:var(--ts);margin-top:4px" id="loan-det-hint"></div>
+    <div style="padding:12px 18px 10px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--ts);font-weight:700">未還總額</div>
+          <div style="font-size:20px;font-weight:700;margin-top:2px" id="loan-pending-amt">NT$0</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--ts);font-weight:700">已還清</div>
+          <div style="font-size:20px;font-weight:700;margin-top:2px;color:var(--ts)" id="loan-settled-amt">NT$0</div>
+        </div>
+      </div>
     </div>
-    <div style="overflow-y:auto;flex:1;padding:0 18px 20px" id="loan-det-list"></div>
+    <div style="display:flex;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
+      <button class="det-tab on" id="loan-tab-pending" onclick="setLoanTab('pending',this)">未還清</button>
+      <button class="det-tab" id="loan-tab-settled" onclick="setLoanTab('settled',this)">已還清</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0 16px 20px" id="loan-mgr-list"></div>
+  </div>
+  <!-- 借貸編輯頁 -->
+  <div class="sub-page" id="sp-loan-edit" style="z-index:23">
+    <div class="nav">
+      <button class="ib" onclick="closeSP('sp-loan-edit')">‹</button>
+      <span class="nav-title" id="loan-edit-title">新增借出</span>
+      <button class="ib danger" id="loan-del-btn" style="display:none" onclick="deleteLoan()">✕</button>
+    </div>
+    <div class="sub-body">
+      <div class="ef-row"><span class="ef-label">對象</span><input class="ef-input" id="loan-person" placeholder="姓名"/></div>
+      <div class="ef-row"><span class="ef-label">金額</span><input class="ef-input" id="loan-amount" type="number" inputmode="decimal" placeholder="0"/></div>
+      <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="loan-date" type="date" style="color:var(--tp)"/></div>
+      <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="loan-note" placeholder="選填"/></div>
+      <div class="ef-row" id="loan-settle-row" style="display:none">
+        <span class="ef-label">已還清</span>
+        <select class="ef-select" id="loan-settled">
+          <option value="0">未還清</option>
+          <option value="1">已還清</option>
+        </select>
+      </div>
+      <div class="save-wrap"><button class="btn-save" onclick="saveLoan()">儲存</button></div>
+    </div>
   </div>
 </div>
 
@@ -838,6 +871,8 @@ window._onFbReady = async ()=>{
 
     const fbMems = await window._fbGetAll('members');
     if(fbMems.length>0) members = fbMems.map(m=>({...m}));
+    const fbLoans = await window._fbGetAll('loans');
+    if(fbLoans.length>0) loans = fbLoans.map(l=>({...l}));
 
     renderRecs();
     renderChart();
@@ -1028,7 +1063,8 @@ function renderRecList(tabData){
       } else {
         const col=CAT_COL[r.cat]||'#aaa';
         const sign=r.type==='inc'?'+':r.amount<0?'+':'-';
-        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content','kb-re')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer} · ${r.account}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+        const subLine=r.type==='inc'?`${r.member} · ${r.account}${r.note?' · '+r.note:''}` : `${r.payer} · ${r.account}${r.note?' · '+r.note:''}`;
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-rec-edit','re-content','kb-re')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${subLine}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
       }
     });
   });
@@ -1162,10 +1198,8 @@ function renderAsset(){
   // 借出：你付款給別人，記錄 type=exp, sub 含「借」且 note 記錄對象
   // 用一個簡單規則：在更多 > 借出借入 手動管理
   // 這裡從 records 計算：inc 的 sub='借' = 別人還你（減借出）；exp 的 sub='借' = 你借給別人（加借出）
-  const loanOutRecs=recs.filter(r=>r.type==='exp'&&r.sub==='借出');
-  const loanInRecs=recs.filter(r=>r.type==='exp'&&r.sub==='借入');
-  const loanOut=loanOutRecs.reduce((s,r)=>s+r.amount,0);
-  const loanIn=loanInRecs.reduce((s,r)=>s+r.amount,0);
+  const loanOut=loans.filter(l=>l.type==='out'&&!l.settled).reduce((s,l)=>s+l.amount,0);
+  const loanIn=loans.filter(l=>l.type==='in'&&!l.settled).reduce((s,l)=>s+l.amount,0);
   document.getElementById('asset-loanout').textContent=fmt(loanOut);
   document.getElementById('asset-loanin').textContent=fmt(loanIn);
   const order=['cash','bank','card','wallet','virtual'];
@@ -1328,37 +1362,117 @@ async function saveAcc(){
   closeSP('sp-acc-edit');renderAsset();
   if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=obj.name;
 }
-function openLoanDet(type){
-  const isOut=type==='out';
-  const sub=isOut?'借出':'借入';
-  document.getElementById('loan-det-title').textContent=isOut?'借出明細':'借入明細';
-  document.getElementById('loan-det-lbl').textContent=isOut?'借出總額（你借給別人）':'借入總額（別人借給你）';
-  document.getElementById('loan-det-hint').textContent=isOut?'記帳時選「支出 > 其他 > 借出」':'記帳時選「支出 > 其他 > 借入」';
-  const loanRecs=recs.filter(r=>r.type==='exp'&&r.sub===sub);
-  const total=loanRecs.reduce((s,r)=>s+r.amount,0);
-  document.getElementById('loan-det-total').textContent=fmt(total);
-  document.getElementById('loan-det-total').style.color=isOut?'#6a9a6a':'#b07070';
-  const byD={};loanRecs.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
-  const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
-  let html='';
-  if(!loanRecs.length){
-    html='<div style="text-align:center;padding:40px;color:var(--ts);font-size:13px;font-weight:600">尚無記錄<br><span style="font-size:11px;opacity:.7">記帳時選「其他 > '+sub+'」即可</span></div>';
-  } else {
-    dates.forEach(date=>{
-      html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span></div>`;
-      byD[date].forEach(r=>{
-        const gi=recs.indexOf(r);
-        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-loan-det','are-content','kb-are')">
-          <div class="tx-dot" style="background:${isOut?'#9aad9e':'#b8a99a'}"></div>
-          <div class="tx-info"><div class="tx-name">${r.note||sub}</div><div class="tx-sub">${r.payer} · ${r.account}</div></div>
-          <div class="tx-right"><div class="tx-amt" style="color:${isOut?'#6a9a6a':'#b07070'}">${isOut?'+':'-'}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div>
-        </div>`;
-      });
-    });
-  }
-  document.getElementById('loan-det-list').innerHTML=html;
-  openSP('sp-loan-det');
+// ── 借貸管理 ──
+let loans=[]; // {id, type:'out'|'in', person, amount, date, note, settled}
+let curLoanType='out', curLoanTab='pending', editLoanIdx=null;
+
+function calcLoanTotals(){
+  const pending=loans.filter(l=>l.type===curLoanType&&!l.settled).reduce((s,l)=>s+l.amount,0);
+  const settled=loans.filter(l=>l.type===curLoanType&&l.settled).reduce((s,l)=>s+l.amount,0);
+  return {pending,settled};
 }
+
+function openLoanMgr(type){
+  curLoanType=type; curLoanTab='pending';
+  document.getElementById('loan-mgr-title').textContent=type==='out'?'借出管理':'借入管理';
+  document.querySelectorAll('#sp-loan-mgr .det-tab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('loan-tab-pending').classList.add('on');
+  renderLoanMgr();
+  openSP('sp-loan-mgr');
+}
+
+function setLoanTab(tab,btn){
+  curLoanTab=tab;
+  document.querySelectorAll('#sp-loan-mgr .det-tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderLoanMgr();
+}
+
+function renderLoanMgr(){
+  const {pending,settled}=calcLoanTotals();
+  const isOut=curLoanType==='out';
+  document.getElementById('loan-pending-amt').textContent=fmt(pending);
+  document.getElementById('loan-pending-amt').style.color=isOut?'#6a9a6a':'#b07070';
+  document.getElementById('loan-settled-amt').textContent=fmt(settled);
+  const list=loans.filter(l=>l.type===curLoanType&&(curLoanTab==='pending'?!l.settled:l.settled));
+  if(!list.length){
+    document.getElementById('loan-mgr-list').innerHTML=`<div style="text-align:center;padding:48px 0;color:var(--ts);font-size:13px;font-weight:600">${curLoanTab==='pending'?'沒有未還清的記錄':'沒有已還清的記錄'}</div>`;
+    return;
+  }
+  document.getElementById('loan-mgr-list').innerHTML=list.map(l=>{
+    const gi=loans.indexOf(l);
+    return `<div class="tx-item" style="margin-top:8px" onclick="openLoanEdit(${gi})">
+      <div class="tx-dot" style="background:${l.settled?'var(--ts)':isOut?'#9aad9e':'#b8a99a'}"></div>
+      <div class="tx-info">
+        <div class="tx-name">${l.person}</div>
+        <div class="tx-sub">${l.date}${l.note?' · '+l.note:''}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amt" style="color:${l.settled?'var(--ts)':isOut?'#6a9a6a':'#b07070'}">${isOut?'+':'-'}${fmt(l.amount)}</div>
+        <div class="tx-mem">${l.settled?'✓ 已還清':'未還清'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openLoanEdit(gi){
+  editLoanIdx=gi;
+  const isNew=gi===null;
+  const isOut=curLoanType==='out';
+  document.getElementById('loan-edit-title').textContent=isNew?(isOut?'新增借出':'新增借入'):(isOut?'編輯借出':'編輯借入');
+  document.getElementById('loan-del-btn').style.display=isNew?'none':'flex';
+  document.getElementById('loan-settle-row').style.display=isNew?'none':'flex';
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  if(isNew){
+    document.getElementById('loan-person').value='';
+    document.getElementById('loan-amount').value='';
+    document.getElementById('loan-date').value=todayStr;
+    document.getElementById('loan-note').value='';
+  } else {
+    const l=loans[gi];
+    document.getElementById('loan-person').value=l.person;
+    document.getElementById('loan-amount').value=l.amount;
+    document.getElementById('loan-date').value=l.date;
+    document.getElementById('loan-note').value=l.note||'';
+    document.getElementById('loan-settled').value=l.settled?'1':'0';
+  }
+  openSP('sp-loan-edit');
+}
+
+async function saveLoan(){
+  const person=document.getElementById('loan-person').value.trim();
+  const amount=parseFloat(document.getElementById('loan-amount').value)||0;
+  if(!person||!amount){alert('請填寫對象和金額');return;}
+  const obj={
+    type:curLoanType, person,amount,
+    date:document.getElementById('loan-date').value,
+    note:document.getElementById('loan-note').value,
+    settled:editLoanIdx!==null?document.getElementById('loan-settled').value==='1':false
+  };
+  if(editLoanIdx===null){
+    loans.push(obj);
+    if(window._fbReady){const ref=await window._fbSave('loans',obj);if(ref)loans[loans.length-1]._id=ref.id;}
+  } else {
+    if(loans[editLoanIdx]._id) obj._id=loans[editLoanIdx]._id;
+    loans[editLoanIdx]=obj;
+    if(window._fbReady&&obj._id) await window._fbUpdate('loans',obj._id,obj);
+  }
+  closeSP('sp-loan-edit');
+  renderLoanMgr();
+  renderAsset();
+}
+
+async function deleteLoan(){
+  if(!confirm('確定刪除？'))return;
+  const l=loans[editLoanIdx];
+  if(window._fbReady&&l._id) await window._fbDelete('loans',l._id);
+  loans.splice(editLoanIdx,1);
+  closeSP('sp-loan-edit');
+  renderLoanMgr();
+  renderAsset();
+}
+
 
 async function deleteAcc(){
   if(confirm(`確定刪除「${accounts[editAccIdx].name}」？`)){
