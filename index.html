@@ -559,6 +559,43 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="save-wrap"><button class="btn-save" onclick="saveAcc()">儲存</button></div>
     </div>
   </div>
+  <!-- 借貸管理 -->
+  <div class="sub-page" id="sp-loan-mgr" style="z-index:22">
+    <div class="nav">
+      <button class="ib" onclick="closeSP('sp-loan-mgr')">‹</button>
+      <span class="nav-title" id="loan-mgr-title">借出管理</span>
+      <button class="ib" onclick="openLoanEdit(null)" style="font-size:20px">+</button>
+    </div>
+    <div style="padding:12px 18px 10px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><div style="font-size:10px;color:var(--ts);font-weight:700">未還總額</div><div style="font-size:20px;font-weight:700;margin-top:2px" id="loan-pending-amt">NT$0</div></div>
+        <div style="flex:1"><div style="font-size:10px;color:var(--ts);font-weight:700">已還清</div><div style="font-size:20px;font-weight:700;margin-top:2px;color:var(--ts)" id="loan-settled-amt">NT$0</div></div>
+      </div>
+    </div>
+    <div style="display:flex;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
+      <button class="det-tab on" id="loan-tab-pending" onclick="setLoanTab('pending',this)">未還清</button>
+      <button class="det-tab" id="loan-tab-settled" onclick="setLoanTab('settled',this)">已還清</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0 16px 20px" id="loan-mgr-list"></div>
+    <div class="sub-page" id="sp-loan-edit" style="z-index:23">
+      <div class="nav">
+        <button class="ib" onclick="closeSP('sp-loan-edit')">‹</button>
+        <span class="nav-title" id="loan-edit-title">新增借出</span>
+        <button class="ib danger" id="loan-del-btn" style="display:none" onclick="deleteLoan()">✕</button>
+      </div>
+      <div class="sub-body">
+        <div class="ef-row"><span class="ef-label">對象</span><input class="ef-input" id="loan-person" placeholder="姓名"/></div>
+        <div class="ef-row"><span class="ef-label">金額</span><input class="ef-input" id="loan-amount" type="number" inputmode="decimal" placeholder="0"/></div>
+        <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="loan-date" type="date" style="color:var(--tp)"/></div>
+        <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="loan-note" placeholder="選填"/></div>
+        <div class="ef-row" id="loan-settle-row" style="display:none">
+          <span class="ef-label">已還清</span>
+          <select class="ef-select" id="loan-settled"><option value="0">未還清</option><option value="1">已還清</option></select>
+        </div>
+        <div class="save-wrap"><button class="btn-save" onclick="saveLoan()">儲存</button></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ══ SETTINGS PAGE ══ -->
@@ -657,58 +694,6 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
           <div class="save-wrap"><button class="btn-save" onclick="saveSubCat()">儲存</button></div>
         </div>
       </div>
-    </div>
-  </div>
-  <!-- Settle -->
-  <div class="sub-page" id="sp-settle">
-    <div class="nav"><button class="ib" onclick="closeSP('sp-settle')">‹</button><span class="nav-title">成員分帳結算</span></div>
-    <div class="sub-body" id="settle-body"></div>
-  </div>
-  <!-- 借貸管理 -->
-  <div class="sub-page" id="sp-loan-mgr" style="z-index:22">
-    <div class="nav">
-      <button class="ib" onclick="closeSP('sp-loan-mgr')">‹</button>
-      <span class="nav-title" id="loan-mgr-title">借出管理</span>
-      <button class="ib" onclick="openLoanEdit(null)" style="font-size:20px">+</button>
-    </div>
-    <div style="padding:12px 18px 10px;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
-      <div style="display:flex;gap:10px">
-        <div style="flex:1">
-          <div style="font-size:10px;color:var(--ts);font-weight:700">未還總額</div>
-          <div style="font-size:20px;font-weight:700;margin-top:2px" id="loan-pending-amt">NT$0</div>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:10px;color:var(--ts);font-weight:700">已還清</div>
-          <div style="font-size:20px;font-weight:700;margin-top:2px;color:var(--ts)" id="loan-settled-amt">NT$0</div>
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0">
-      <button class="det-tab on" id="loan-tab-pending" onclick="setLoanTab('pending',this)">未還清</button>
-      <button class="det-tab" id="loan-tab-settled" onclick="setLoanTab('settled',this)">已還清</button>
-    </div>
-    <div style="overflow-y:auto;flex:1;padding:0 16px 20px" id="loan-mgr-list"></div>
-  </div>
-  <!-- 借貸編輯頁 -->
-  <div class="sub-page" id="sp-loan-edit" style="z-index:23">
-    <div class="nav">
-      <button class="ib" onclick="closeSP('sp-loan-edit')">‹</button>
-      <span class="nav-title" id="loan-edit-title">新增借出</span>
-      <button class="ib danger" id="loan-del-btn" style="display:none" onclick="deleteLoan()">✕</button>
-    </div>
-    <div class="sub-body">
-      <div class="ef-row"><span class="ef-label">對象</span><input class="ef-input" id="loan-person" placeholder="姓名"/></div>
-      <div class="ef-row"><span class="ef-label">金額</span><input class="ef-input" id="loan-amount" type="number" inputmode="decimal" placeholder="0"/></div>
-      <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="loan-date" type="date" style="color:var(--tp)"/></div>
-      <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="loan-note" placeholder="選填"/></div>
-      <div class="ef-row" id="loan-settle-row" style="display:none">
-        <span class="ef-label">已還清</span>
-        <select class="ef-select" id="loan-settled">
-          <option value="0">未還清</option>
-          <option value="1">已還清</option>
-        </select>
-      </div>
-      <div class="save-wrap"><button class="btn-save" onclick="saveLoan()">儲存</button></div>
     </div>
   </div>
 </div>
