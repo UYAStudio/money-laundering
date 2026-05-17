@@ -585,14 +585,24 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       </div>
       <div class="sub-body">
         <div class="ef-row"><span class="ef-label">對象</span><input class="ef-input" id="loan-person" placeholder="姓名"/></div>
-        <div class="ef-row"><span class="ef-label">金額</span><input class="ef-input" id="loan-amount" type="number" inputmode="decimal" placeholder="0"/></div>
+        <div class="ef-row"><span class="ef-label">借款金額</span><input class="ef-input" id="loan-amount" type="number" inputmode="decimal" placeholder="0"/></div>
         <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="loan-date" type="date" style="color:var(--tp)"/></div>
         <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="loan-note" placeholder="選填"/></div>
-        <div class="ef-row" id="loan-settle-row" style="display:none">
-          <span class="ef-label">已還清</span>
-          <select class="ef-select" id="loan-settled"><option value="0">未還清</option><option value="1">已還清</option></select>
+        <div class="save-wrap" style="padding:6px 0 12px"><button class="btn-save" onclick="saveLoan()">儲存</button></div>
+        <!-- 還款記錄（僅編輯時顯示） -->
+        <div id="loan-payment-section" style="display:none">
+          <div style="font-size:11px;font-weight:700;color:var(--ts);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+            <span>還款記錄</span>
+            <span id="loan-remaining-lbl" style="color:var(--tp)"></span>
+          </div>
+          <div id="loan-payment-list"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="loan-pay-amt" type="number" inputmode="decimal" placeholder="還款金額" style="flex:1;padding:9px 12px;border:1px solid var(--bd);border-radius:12px;font-size:14px;font-weight:600;color:var(--tp);background:var(--bg);outline:none;font-family:'Nunito',sans-serif"/>
+            <input id="loan-pay-date" type="date" style="flex:1;padding:9px 12px;border:1px solid var(--bd);border-radius:12px;font-size:13px;font-weight:600;color:var(--tp);background:var(--bg);outline:none;font-family:'Nunito',sans-serif"/>
+            <button onclick="addLoanPayment()" style="padding:9px 14px;background:var(--g-acc);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;white-space:nowrap">+ 還款</button>
+          </div>
+          <button id="loan-settle-btn" onclick="markLoanSettled()" style="width:100%;margin-top:8px;padding:12px;border:1.5px solid #6a9a6a;border-radius:12px;background:none;color:#6a9a6a;font-size:13px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif">✓ 標記為已還清</button>
         </div>
-        <div class="save-wrap"><button class="btn-save" onclick="saveLoan()">儲存</button></div>
       </div>
     </div>
   </div>
@@ -600,7 +610,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
 
 <!-- ══ SETTINGS PAGE ══ -->
 <div class="page" id="pg-settings">
-  <div class="nav"><span class="nav-title">更多</span></div>
+  <div class="nav" style="background:linear-gradient(135deg,#6090c8,#4878b0);border-bottom:none"><span class="nav-title" style="color:#fff">更多</span></div>
   <div class="settings-scroll">
     <div class="family-card">
       <div class="family-name" id="family-name-txt" onclick="editFamilyName()" style="cursor:pointer;border-bottom:1.5px dashed rgba(255,255,255,0.5);display:inline-block;padding-bottom:1px">我的家庭帳本</div>
@@ -1406,7 +1416,7 @@ function openLoanEdit(gi){
   const isOut=curLoanType==='out';
   document.getElementById('loan-edit-title').textContent=isNew?(isOut?'新增借出':'新增借入'):(isOut?'編輯借出':'編輯借入');
   document.getElementById('loan-del-btn').style.display=isNew?'none':'flex';
-  document.getElementById('loan-settle-row').style.display=isNew?'none':'flex';
+  document.getElementById('loan-payment-section').style.display=isNew?'none':'block';
   const today=new Date();
   const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   if(isNew){
@@ -1420,9 +1430,63 @@ function openLoanEdit(gi){
     document.getElementById('loan-amount').value=l.amount;
     document.getElementById('loan-date').value=l.date;
     document.getElementById('loan-note').value=l.note||'';
-    document.getElementById('loan-settled').value=l.settled?'1':'0';
+    document.getElementById('loan-pay-date').value=todayStr;
+    document.getElementById('loan-pay-amt').value='';
+    renderLoanPayments(gi);
   }
   openSP('sp-loan-edit');
+}
+
+function renderLoanPayments(gi){
+  const l=loans[gi];
+  const paid=(l.payments||[]).reduce((s,p)=>s+p.amount,0);
+  const remaining=Math.max(0,l.amount-paid);
+  document.getElementById('loan-remaining-lbl').textContent=`剩餘 ${fmt(remaining)}`;
+  document.getElementById('loan-remaining-lbl').style.color=remaining===0?'#6a9a6a':'#b07070';
+  document.getElementById('loan-settle-btn').style.display=l.settled?'none':'block';
+  document.getElementById('loan-payment-list').innerHTML=(l.payments||[]).map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)">
+      <span style="flex:1;font-size:13px;font-weight:600">${p.date}</span>
+      <span style="font-size:13px;font-weight:700;color:#6a9a6a">+${fmt(p.amount)}</span>
+      <button onclick="delLoanPayment(${i})" style="background:none;border:none;cursor:pointer;color:var(--ts);font-size:14px;padding:0 4px">✕</button>
+    </div>`).join('')||'<div style="color:var(--ts);font-size:12px;padding:6px 0">尚無還款記錄</div>';
+}
+
+async function addLoanPayment(){
+  const amt=parseFloat(document.getElementById('loan-pay-amt').value)||0;
+  const date=document.getElementById('loan-pay-date').value;
+  if(!amt||!date){alert('請輸入還款金額和日期');return;}
+  const l=loans[editLoanIdx];
+  if(!l.payments) l.payments=[];
+  l.payments.push({amount:amt,date});
+  const paid=l.payments.reduce((s,p)=>s+p.amount,0);
+  if(paid>=l.amount) l.settled=true;
+  if(window._fbReady&&l._id) await window._fbUpdate('loans',l._id,l);
+  document.getElementById('loan-pay-amt').value='';
+  renderLoanPayments(editLoanIdx);
+  renderLoanMgr();
+  renderAsset();
+}
+
+async function delLoanPayment(pi){
+  const l=loans[editLoanIdx];
+  l.payments.splice(pi,1);
+  const paid=(l.payments||[]).reduce((s,p)=>s+p.amount,0);
+  if(paid<l.amount) l.settled=false;
+  if(window._fbReady&&l._id) await window._fbUpdate('loans',l._id,l);
+  renderLoanPayments(editLoanIdx);
+  renderLoanMgr();
+  renderAsset();
+}
+
+async function markLoanSettled(){
+  const l=loans[editLoanIdx];
+  l.settled=true;
+  if(window._fbReady&&l._id) await window._fbUpdate('loans',l._id,l);
+  document.getElementById('loan-settle-btn').style.display='none';
+  renderLoanPayments(editLoanIdx);
+  renderLoanMgr();
+  renderAsset();
 }
 
 async function saveLoan(){
@@ -1503,12 +1567,34 @@ async function deleteMem(){
 }
 function renderCats(){
   ['exp','inc'].forEach(type=>{
-    document.getElementById(type+'-cat-list').innerHTML=Object.keys(CATS[type]).map((big,i,arr)=>`
-      <div class="menu-item" style="${i<arr.length-1?'border-bottom:1px solid var(--bd)':''}" onclick="openBigCatEdit('${type}','${big}')">
-        <div style="flex:1"><div class="menu-lbl">${big}</div><div class="menu-sub">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div></div>
-        <span style="font-size:11px;font-weight:700;color:var(--ts);margin-right:6px">${CATS[type][big].length}個</span><span class="arrow">›</span>
+    const keys=Object.keys(CATS[type]);
+    document.getElementById(type+'-cat-list').innerHTML=keys.map((big,i,arr)=>`
+      <div class="menu-item" style="${i<arr.length-1?'border-bottom:1px solid var(--bd)':''}">
+        <div style="display:flex;flex-direction:column;gap:2px;margin-right:6px">
+          <button onclick="moveCat('${type}','${big}',-1)" style="background:none;border:none;cursor:pointer;color:${i===0?'#ddd':'var(--ts)'};font-size:12px;line-height:1;padding:0" ${i===0?'disabled':''}>▲</button>
+          <button onclick="moveCat('${type}','${big}',1)" style="background:none;border:none;cursor:pointer;color:${i===arr.length-1?'#ddd':'var(--ts)'};font-size:12px;line-height:1;padding:0" ${i===arr.length-1?'disabled':''}>▼</button>
+        </div>
+        <div style="flex:1;cursor:pointer" onclick="openBigCatEdit('${type}','${big}')"><div class="menu-lbl">${big}</div><div class="menu-sub">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div></div>
+        <span style="font-size:11px;font-weight:700;color:var(--ts);margin-right:6px">${CATS[type][big].length}個</span>
+        <span class="arrow" style="cursor:pointer" onclick="openBigCatEdit('${type}','${big}')">›</span>
       </div>`).join('');
   });
+}
+
+function moveCat(type, big, dir){
+  const keys=Object.keys(CATS[type]);
+  const i=keys.indexOf(big);
+  const ni=i+dir;
+  if(ni<0||ni>=keys.length)return;
+  // swap
+  const newObj={};
+  keys.forEach((k,idx)=>{
+    if(idx===i) newObj[keys[ni]]=CATS[type][keys[ni]];
+    else if(idx===ni) newObj[big]=CATS[type][big];
+    else newObj[k]=CATS[type][k];
+  });
+  CATS[type]=newObj;
+  renderCats();
 }
 function openBigCatEdit(type,big){
   editBigType=type;editBig=big;
