@@ -762,24 +762,26 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
     <div class="menu-group" id="inc-cat-list"></div>
     <button class="add-row" onclick="openBigCatEdit('inc',null)">+ 新增收入大類</button>
   </div>
-  <!-- 大類編輯 -->
-  <div id="sp-bigcat-edit" style="display:flex;flex-direction:column;position:fixed;top:0;left:50%;transform:translateX(-50%) translateX(100%);width:100%;max-width:480px;height:100vh;background:#f7f7f7;z-index:201;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);visibility:hidden">
-    <div class="nav"><button class="ib" onclick="closeSP('sp-bigcat-edit')">‹</button><span class="nav-title" id="bigcat-edit-title">大類設定</span><button class="ib danger" id="bigcat-del-btn" style="display:none" onclick="deleteBigCat()">✕</button></div>
-    <div style="flex:1;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:14px 18px 80px;display:flex;flex-direction:column;gap:10px;min-height:0">
-      <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="bigcat-name" placeholder="大類名稱" maxlength="8"/></div>
-      <div class="save-wrap" style="padding:0"><button class="btn-save" onclick="saveBigCatName()">儲存名稱</button></div>
-      <div class="sec-lbl">子分類</div>
-      <div class="tag-grid" id="sub-tags"></div>
-      <div class="add-tag-row"><input id="new-sub" placeholder="新增子分類" maxlength="10"/><button class="add-tag-btn" onclick="addSubCat()">新增</button></div>
-    </div>
-    <!-- 子分類編輯 -->
-    <div id="sp-subcat-edit" style="display:flex;flex-direction:column;position:fixed;top:0;left:50%;transform:translateX(-50%) translateX(100%);width:100%;max-width:480px;height:100vh;background:#f7f7f7;z-index:202;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);visibility:hidden">
-      <div class="nav"><button class="ib" onclick="closeSP('sp-subcat-edit')">‹</button><span class="nav-title">編輯子分類</span><button class="ib danger" onclick="deleteSubCat()">✕</button></div>
-      <div class="sub-body">
-        <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="subcat-name" placeholder="子分類名稱" maxlength="10"/></div>
-        <div class="save-wrap"><button class="btn-save" onclick="saveSubCat()">儲存</button></div>
-      </div>
-    </div>
+</div>
+
+<!-- 大類編輯 -->
+<div id="sp-bigcat-edit" style="display:flex;flex-direction:column;position:fixed;top:0;left:50%;transform:translateX(-50%) translateX(100%);width:100%;max-width:480px;height:100vh;background:#f7f7f7;z-index:201;transition:transform .28s cubic-bezier(.4,0,.2,1);visibility:hidden">
+  <div class="nav"><button class="ib" onclick="closeSP('sp-bigcat-edit')">‹</button><span class="nav-title" id="bigcat-edit-title">大類設定</span><button class="ib danger" id="bigcat-del-btn" style="display:none" onclick="deleteBigCat()">✕</button></div>
+  <div style="flex:1;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:14px 18px 80px;display:flex;flex-direction:column;gap:10px;min-height:0">
+    <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="bigcat-name" placeholder="大類名稱" maxlength="8"/></div>
+    <div class="save-wrap" style="padding:0"><button class="btn-save" onclick="saveBigCatName()">儲存名稱</button></div>
+    <div class="sec-lbl">子分類</div>
+    <div class="tag-grid" id="sub-tags"></div>
+    <div class="add-tag-row"><input id="new-sub" placeholder="新增子分類" maxlength="10"/><button class="add-tag-btn" onclick="addSubCat()">新增</button></div>
+  </div>
+</div>
+
+<!-- 子分類編輯 -->
+<div id="sp-subcat-edit" style="display:flex;flex-direction:column;position:fixed;top:0;left:50%;transform:translateX(-50%) translateX(100%);width:100%;max-width:480px;height:100vh;background:#f7f7f7;z-index:202;transition:transform .28s cubic-bezier(.4,0,.2,1);visibility:hidden">
+  <div class="nav"><button class="ib" onclick="closeSP('sp-subcat-edit')">‹</button><span class="nav-title">編輯子分類</span><button class="ib danger" onclick="deleteSubCat()">✕</button></div>
+  <div style="flex:1;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:14px 18px 80px;display:flex;flex-direction:column;gap:10px;min-height:0">
+    <div class="ef-row"><span class="ef-label">名稱</span><input class="ef-input" id="subcat-name" placeholder="子分類名稱" maxlength="10"/></div>
+    <div class="save-wrap" style="padding:0"><button class="btn-save" onclick="saveSubCat()">儲存</button></div>
   </div>
 </div>
 </div>
