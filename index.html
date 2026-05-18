@@ -1692,7 +1692,8 @@ function renderSubTags(){
 }
 
 function delSubDirect(i){
-  if(confirm(\`確定刪除「\${CATS[editBigType][editBig][i]}」？\`)){
+  const name=CATS[editBigType][editBig][i];
+  if(confirm('確定刪除「'+name+'」？')){
     CATS[editBigType][editBig].splice(i,1);
     renderSubTags();renderCats();
   }
