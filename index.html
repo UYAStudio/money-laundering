@@ -1354,22 +1354,7 @@ async function confirmUpdateBalance(){
   const a=accounts[accDetIdx];if(!a)return;
   const newBal=parseFloat(document.getElementById('update-bal-input').value);
   if(isNaN(newBal)){alert('請輸入有效金額');return;}
-  const diff=newBal-a.balance;
-  if(diff===0){closeUpdateBalance();return;}
-  // 自動補一筆調整記錄
-  const today=new Date();
-  const dateStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const adjRec={
-    date:dateStr,
-    type:diff>0?'inc':'exp',
-    cat:'其他',sub:'餘額調整',
-    amount:Math.abs(diff),
-    account:a.name,payer:a.owner,member:a.owner,
-    note:`更新餘額：${a.balance<0?'-':'+'}${fmt(a.balance)} → ${newBal<0?'-':'+'}${fmt(newBal)}`
-  };
-  recs.unshift(adjRec);
-  await fbSaveRec(adjRec);
-  // 更新帳戶餘額
+  // 直接更新餘額，不產生記帳記錄
   a.balance=newBal;
   await fbSaveAcc(a);
   closeUpdateBalance();
