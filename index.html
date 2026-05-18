@@ -1301,6 +1301,24 @@ function renderAccDetList(){
       html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content','kb-are')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
     });
   });
+  // 餘額調整歷史
+  if(a.balanceHistory&&a.balanceHistory.length){
+    html+=`<div style="margin-top:16px;font-size:11px;font-weight:700;color:#aaa;letter-spacing:.4px;padding:4px 0">餘額調整記錄</div>`;
+    a.balanceHistory.forEach((h,i)=>{
+      const diff=h.to-h.from;
+      html+=`<div class="tx-item" style="opacity:.8">
+        <div class="tx-dot" style="background:#b0b8cc"></div>
+        <div class="tx-info">
+          <div class="tx-name">餘額更新</div>
+          <div class="tx-sub">${h.date}${h.note?' · '+h.note:''}</div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-amt" style="color:${diff>=0?'#6a9a6a':'#b07070'}">${diff>=0?'+':'-'}${fmt(diff)}</div>
+          <div class="tx-mem" style="color:#aaa">${fmt(h.from)}→${fmt(h.to)}</div>
+        </div>
+      </div>`;
+    });
+  }
   document.getElementById('acc-det-list').innerHTML=html||'<div style="text-align:center;padding:40px;color:var(--ts);font-weight:600">無記錄</div>';
 }
 function renderAccDetChart(){
@@ -1354,7 +1372,16 @@ async function confirmUpdateBalance(){
   const a=accounts[accDetIdx];if(!a)return;
   const newBal=parseFloat(document.getElementById('update-bal-input').value);
   if(isNaN(newBal)){alert('請輸入有效金額');return;}
-  // 直接更新餘額，不產生記帳記錄
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  // 記錄到帳戶的 balanceHistory，不混入 recs
+  if(!a.balanceHistory) a.balanceHistory=[];
+  a.balanceHistory.unshift({
+    date:dateStr,
+    from:a.balance,
+    to:newBal,
+    note:'餘額更新'
+  });
   a.balance=newBal;
   await fbSaveAcc(a);
   closeUpdateBalance();
