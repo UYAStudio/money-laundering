@@ -1671,6 +1671,16 @@ function catDrop(e,type,cat){
 function catDragEnd(e){
   document.querySelectorAll('.cat-row').forEach(r=>r.style.opacity='1');
 }
+function openBigCatEdit(type,big){
+  editBigType=type;editBig=big;
+  const isNew=big===null;
+  document.getElementById('bigcat-edit-title').textContent=isNew?'新增大類':'編輯大類';
+  document.getElementById('bigcat-del-btn').style.display=isNew?'none':'flex';
+  document.getElementById('bigcat-name').value=isNew?'':big;
+  document.getElementById('new-sub').value='';
+  renderSubTags();
+  openSP('sp-bigcat-edit');
+}
 function saveBigCatName(){
   const newName=document.getElementById('bigcat-name').value.trim();if(!newName)return;
   if(editBig===null){
