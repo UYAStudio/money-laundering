@@ -824,37 +824,13 @@ const MONTHS=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10
 /* ══════════════════════════════════
    STATE
 ══════════════════════════════════ */
-let members=[
-  {name:'聆',color:'#92a3b0'},{name:'皮皮',color:'#b8a99a'},
-  {name:'蹦蹦',color:'#9aad9e'},{name:'跳跳',color:'#9e96b0'},
-  {name:'妹妹',color:'#ada592'},{name:'家',color:'#9e9890'},
-];
-let accounts=[
-  {name:'聆的現金',type:'cash',owner:'聆',balance:5200,color:'#9aad9e'},
-  {name:'皮的現金',type:'cash',owner:'皮皮',balance:5186,color:'#b8a99a'},
-  {name:'台新',type:'bank',owner:'聆',balance:2028,color:'#92a3b0'},
-  {name:'台新R',type:'bank',owner:'聆',balance:34585,color:'#92a3b0'},
-  {name:'中信',type:'bank',owner:'聆',balance:982,color:'#9e96b0'},
-  {name:'台新黑狗',type:'card',owner:'皮皮',balance:-35049,color:'#8a8a8a'},
-  {name:'街口',type:'wallet',owner:'聆',balance:3185,color:'#ada592'},
-];
+let members=[];
+let accounts=[];
 let CATS={
   exp:{'吃喝':['早餐','午餐','晚餐','宵夜','飲料','點心','食材','水果','酒'],'交通':['加油','eTag','停車','捷運','公車','火車','高鐵','計程車','保養','維修'],'生活':['清潔','3C用品','服飾','廚房','寢具','日用品'],'醫療':['掛號','藥-吃','藥-擦','預防針','其他'],'教育':['補習','書籍','課程','軟體'],'娛樂':['遊戲','門票','電影票','會員','訂閱'],'固定':['管理費','電費','水費','天然氣','網路','貸款','租金','電話費','汽車清潔','機車清潔'],'代購':['商品','運費','手續費','稅金','儲值','換匯'],'寵物':['飼料','貓砂','醫療','玩具'],'回饋':['優惠','現金回饋'],'其他':['紅包','送禮','借出','借入','其他']},
   inc:{'正職':['薪資','油資','獎金','年終','紅利'],'兼職':['蝦皮','團購','兼職'],'投資':['利息','股息','基金'],'額外':['借','還','媽','爸','其他']}
 };
-let recs=[
-  {date:'2026-03-15',type:'exp',cat:'吃喝',sub:'午餐',amount:320,account:'台新黑狗',payer:'聆',member:'聆',note:'FP-麥當勞'},
-  {date:'2026-03-15',type:'exp',cat:'吃喝',sub:'飲料',amount:45,account:'皮的現金',payer:'皮皮',member:'皮皮',note:'全-奶茶'},
-  {date:'2026-03-14',type:'exp',cat:'固定',sub:'管理費',amount:3118,account:'台新黑狗',payer:'聆',member:'家',note:'3月'},
-  {date:'2026-03-14',type:'exp',cat:'交通',sub:'加油',amount:1200,account:'台新黑狗',payer:'聆',member:'聆',note:'上群加油站'},
-  {date:'2026-03-13',type:'inc',cat:'正職',sub:'薪資',amount:29500,account:'台新R',payer:'聆',member:'聆',note:''},
-  {date:'2026-03-13',type:'exp',cat:'代購',sub:'商品',amount:6322,account:'台新R',payer:'聆',member:'聆',note:'螺獅粉'},
-  {date:'2026-03-12',type:'xfr',cat:'轉帳',sub:'轉帳',amount:15000,fromAcc:'台新R',toAcc:'台新黑狗',fromMem:'聆',toMem:'皮皮',note:'還信用卡'},
-  {date:'2026-03-12',type:'exp',cat:'醫療',sub:'掛號',amount:250,account:'聆的現金',payer:'聆',member:'蹦蹦',note:'吳鎮宇'},
-  {date:'2026-03-10',type:'exp',cat:'吃喝',sub:'晚餐',amount:450,account:'台新黑狗',payer:'皮皮',member:'家',note:'FP-張鴨肉麵'},
-  {date:'2026-03-10',type:'inc',cat:'額外',sub:'還',amount:7250,account:'台新R',payer:'聆',member:'聆',note:'汝-機票'},
-  {date:'2026-03-08',type:'exp',cat:'教育',sub:'補習',amount:2550,account:'聆的現金',payer:'聆',member:'蹦蹦',note:'學費'},
-];
+let recs=[];
 
 const _now=new Date();
 let curPage='records', curMonth=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`, rTab='all', chartType='exp', selDate=null;
@@ -1359,15 +1335,15 @@ function renderAccDetList(){
     html+=`<div style="margin-top:16px;font-size:11px;font-weight:700;color:#aaa;letter-spacing:.4px;padding:4px 0">餘額調整記錄</div>`;
     a.balanceHistory.forEach((h,i)=>{
       const diff=h.to-h.from;
-      html+=`<div class="tx-item" style="opacity:.8">
+      html+=`<div class="tx-item" style="opacity:.85;cursor:pointer" onclick="editBalHistory(${i})">
         <div class="tx-dot" style="background:#b0b8cc"></div>
         <div class="tx-info">
           <div class="tx-name">餘額更新</div>
           <div class="tx-sub">${h.date}${h.note?' · '+h.note:''}</div>
         </div>
         <div class="tx-right">
-          <div class="tx-amt" style="color:${diff>=0?'#6a9a6a':'#b07070'}">${diff>=0?'+':'-'}${fmt(diff)}</div>
-          <div class="tx-mem" style="color:#aaa">${fmt(h.from)}→${fmt(h.to)}</div>
+          <div class="tx-amt" style="color:${diff>=0?'#6a9a6a':'#b07070'}">${diff>=0?'+':'-'}${fmt(Math.abs(diff))}</div>
+          <div class="tx-mem" style="color:#aaa">→${fmt(h.to)}</div>
         </div>
       </div>`;
     });
@@ -1416,6 +1392,21 @@ function openUpdateBalance(){
   document.getElementById('update-bal-overlay').style.display='block';
   document.getElementById('update-bal-sheet').style.display='block';
   setTimeout(()=>document.getElementById('update-bal-input').focus(),200);
+}
+function editBalHistory(i){
+  const a=accounts[accDetIdx];
+  if(!a||!a.balanceHistory)return;
+  const h=a.balanceHistory[i];
+  const choice=confirm(`餘額更新記錄\n日期：${h.date}\n更新後：${fmt(h.to)}\n\n確定刪除這筆記錄？`);
+  if(choice){
+    a.balanceHistory.splice(i,1);
+    // 重新計算 balance 基準
+    if(a.balanceHistory.length===0) a.balance=0;
+    else a.balance=a.balanceHistory[a.balanceHistory.length-1].to;
+    fbSaveAcc(a);
+    renderAccDetList();
+    renderAsset();
+  }
 }
 function closeUpdateBalance(){
   document.getElementById('update-bal-overlay').style.display='none';
@@ -1708,7 +1699,7 @@ async function saveMem(){
       }
     }
   }
-  closeSP('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();
+  closeSP('sp-mem-edit');renderMemList();renderSettings();updateAddSelects();renderRecs();renderAsset();
 }
 async function deleteMem(){
   if(confirm(`確定刪除「${members[editMemIdx].name}」？`)){
