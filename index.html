@@ -50,7 +50,12 @@
   window._fbUpdate = async (col, id, data) => {
     if(!window._fbReady) return;
     try { await updateDoc(doc(db, col, id), {...data, updatedAt: Date.now()}); }
-    catch(e){ console.error(e); }
+    catch(e){
+      // 文件不存在時用 setDoc
+      try{ const {setDoc} = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        await setDoc(doc(db, col, id), {...data, updatedAt: Date.now()}); }
+      catch(e2){ console.error(e2); }
+    }
   };
   window._fbDelete = async (col, id) => {
     if(!window._fbReady) return;
@@ -895,6 +900,14 @@ window._onFbReady = async ()=>{
     if(fbMems.length>0) members = fbMems.map(m=>({...m}));
     const fbLoans = await window._fbGetAll('loans');
     if(fbLoans.length>0) loans = fbLoans.map(l=>({...l}));
+    // 載入分類
+    try{
+      const fbCats = await window._fbGetAll('categories');
+      if(fbCats.length>0&&fbCats[0].exp){
+        CATS.exp=fbCats[0].exp;
+        CATS.inc=fbCats[0].inc;
+      }
+    } catch(e){ console.log('cats load failed',e); }
 
     renderRecs();
     renderChart();
@@ -928,6 +941,16 @@ async function fbSaveMem(m){
   if(!window._fbReady)return;
   if(m._id) await window._fbUpdate('members', m._id, m);
   else { const ref=await window._fbSave('members',m); if(ref) m._id=ref.id; }
+}
+async function fbSaveCats(){
+  if(!window._fbReady)return;
+  // 存成單一文件，key = 'default'
+  try{
+    await window._fbUpdate('categories','default',{exp:CATS.exp,inc:CATS.inc,updatedAt:Date.now()});
+  } catch(e){
+    // 文件不存在就新建
+    await window._fbSave('categories',{exp:CATS.exp,inc:CATS.inc});
+  }
 }
 async function fbDeleteMem(m){
   if(!window._fbReady||!m._id)return;
@@ -1723,7 +1746,7 @@ function catDrop(e,type,cat){
   const newObj={};
   reordered.forEach(k=>{newObj[k]=CATS[type][k];});
   CATS[type]=newObj;
-  renderCats();
+  renderCats();fbSaveCats();
 }
 function catDragEnd(e){
   document.querySelectorAll('.cat-row').forEach(r=>r.style.opacity='1');
@@ -1759,10 +1782,10 @@ function saveBigCatName(){
     keys.forEach(k=>{newObj[k===editBig?newName:k]=CATS[editBigType][k];});
     CATS[editBigType]=newObj;editBig=newName;
   }
-  renderCats();renderSubTags();document.getElementById('bigcat-edit-title').textContent='編輯大類';
+  renderCats();renderSubTags();document.getElementById('bigcat-edit-title').textContent='編輯大類';fbSaveCats();
 }
 function deleteBigCat(){
-  if(confirm(`確定刪除「${editBig}」及所有子分類？`)){delete CATS[editBigType][editBig];closeSP('sp-bigcat-edit');renderCats();}
+  if(confirm(`確定刪除「${editBig}」及所有子分類？`)){delete CATS[editBigType][editBig];closeSP('sp-bigcat-edit');renderCats();fbSaveCats();}
 }
 function renderSubTags(){
   const subs=editBig?CATS[editBigType][editBig]||[]:[];
@@ -1784,12 +1807,12 @@ function delSubDirect(i){
   const name=CATS[editBigType][editBig][i];
   if(confirm('確定刪除「'+name+'」？')){
     CATS[editBigType][editBig].splice(i,1);
-    renderSubTags();renderCats();
+    renderSubTags();renderCats();fbSaveCats();
   }
 }
 function addSubCat(){
   const v=document.getElementById('new-sub').value.trim();if(!v||!editBig)return;
-  CATS[editBigType][editBig].push(v);document.getElementById('new-sub').value='';renderSubTags();renderCats();
+  CATS[editBigType][editBig].push(v);document.getElementById('new-sub').value='';renderSubTags();renderCats();fbSaveCats();
 }
 function openSubCatEdit(i){
   editSubIdx=i;
@@ -1798,8 +1821,8 @@ function openSubCatEdit(i){
   const el=document.getElementById('sp-subcat-edit');
   if(el){el.style.display='flex';el.style.flexDirection='column';el.style.zIndex='203';}
 }
-function saveSubCat(){const v=document.getElementById('subcat-name').value.trim();if(!v)return;CATS[editBigType][editBig][editSubIdx]=v;closeSP('sp-subcat-edit');renderSubTags();renderCats();}
-function deleteSubCat(){if(confirm(`確定刪除「${CATS[editBigType][editBig][editSubIdx]}」？`)){CATS[editBigType][editBig].splice(editSubIdx,1);closeSP('sp-subcat-edit');renderSubTags();renderCats();}}
+function saveSubCat(){const v=document.getElementById('subcat-name').value.trim();if(!v)return;CATS[editBigType][editBig][editSubIdx]=v;closeSP('sp-subcat-edit');renderSubTags();renderCats();fbSaveCats();}
+function deleteSubCat(){if(confirm(`確定刪除「${CATS[editBigType][editBig][editSubIdx]}」？`)){CATS[editBigType][editBig].splice(editSubIdx,1);closeSP('sp-subcat-edit');renderSubTags();renderCats();fbSaveCats();}}
 function renderSettle(){
   const bal={};members.forEach(m=>{bal[m.name]=0;});
   recs.filter(r=>r.type==='xfr').forEach(r=>{bal[r.toMem]=(bal[r.toMem]||0)+r.amount;bal[r.fromMem]=(bal[r.fromMem]||0)-r.amount;});
