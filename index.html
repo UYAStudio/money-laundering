@@ -1411,9 +1411,23 @@ function pickAccCol(c){accPickCol=c;renderAccColors();}
 async function saveAcc(){
   const name=document.getElementById('acc-name').value.trim();if(!name)return;
   const obj={name,color:accPickCol,type:document.getElementById('acc-type').value,owner:document.getElementById('acc-owner').value,balance:parseFloat(document.getElementById('acc-bal').value)||0};
-  if(editAccIdx===null){accounts.push(obj);await fbSaveAcc(accounts[accounts.length-1]);}
-  else{Object.assign(accounts[editAccIdx],obj);await fbSaveAcc(accounts[editAccIdx]);}
-  closeSP('sp-acc-edit');renderAsset();
+  if(editAccIdx===null){
+    accounts.push(obj);
+    await fbSaveAcc(accounts[accounts.length-1]);
+  } else {
+    const oldName=accounts[editAccIdx].name;
+    Object.assign(accounts[editAccIdx],obj);
+    await fbSaveAcc(accounts[editAccIdx]);
+    // 帳戶改名：同步更新所有記錄的 account 欄位
+    if(oldName!==name){
+      for(const r of recs){
+        if(r.account===oldName){r.account=name;await fbSaveRec(r);}
+        if(r.fromAcc===oldName){r.fromAcc=name;await fbSaveRec(r);}
+        if(r.toAcc===oldName){r.toAcc=name;await fbSaveRec(r);}
+      }
+    }
+  }
+  closeSP('sp-acc-edit');renderAsset();renderRecs();
   if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=obj.name;
 }
 // ── 借貸管理 ──
@@ -1802,14 +1816,29 @@ async function saveNewRec(){
   if(addType==='xfr'){
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
     const dateStr=document.getElementById('add-xdate').value||curMonth+'-01';
-    r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:document.getElementById('add-xfa').value,toAcc:document.getElementById('add-xta').value,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''};
+    const fromAccName=document.getElementById('add-xfa').value;
+    const toAccName=document.getElementById('add-xta').value;
+    r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:fromAccName,toAcc:toAccName,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''};
+    // 更新帳戶餘額
+    const fromAcc=accounts.find(ac=>ac.name===fromAccName);
+    const toAcc=accounts.find(ac=>ac.name===toAccName);
+    if(fromAcc){fromAcc.balance-=a;await fbSaveAcc(fromAcc);}
+    if(toAcc){toAcc.balance+=a;await fbSaveAcc(toAcc);}
   } else {
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
     const dateStr=document.getElementById('add-date').value||curMonth+'-01';
-    r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:document.getElementById('add-acc').value,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
+    const accName=document.getElementById('add-acc').value;
+    r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:accName,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
+    // 更新帳戶餘額
+    const acc=accounts.find(ac=>ac.name===accName);
+    if(acc){
+      if(addType==='exp') acc.balance-=a;
+      else if(addType==='inc') acc.balance+=a;
+      await fbSaveAcc(acc);
+    }
   }
   recs.unshift(r);await fbSaveRec(r);
-  closeAdd();renderRecs();
+  closeAdd();renderRecs();renderAsset();
 }
 
 /* ══════════════════════════════════
