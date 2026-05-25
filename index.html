@@ -998,6 +998,7 @@ function openSP(id){
   const el=document.getElementById(id);if(!el)return;
   if(CAT_PAGES.includes(id)){
     el.style.display='flex';
+    el.style.flexDirection='column';
   } else {
     el.classList.add('open');
     el.style.transform='translateX(0)';
@@ -1629,21 +1630,21 @@ function renderCats(){
     const el=document.getElementById(type+'-cat-list');
     if(!el)return;
     el.innerHTML=keys.map((big,i,arr)=>{
-      const borderStyle=i<arr.length-1?'border-bottom:1px solid #f0f0f0':'';
+      const border=i<arr.length-1?'border-bottom:1px solid #f0f0f0':'';
       return `<div class="cat-row" data-type="${type}" data-cat="${big}"
         draggable="true"
         ondragstart="catDragStart(event,'${type}','${big}')"
         ondragover="catDragOver(event)"
         ondrop="catDrop(event,'${type}','${big}')"
         ondragend="catDragEnd(event)"
-        style="display:flex;align-items:center;padding:11px 12px;${borderStyle};background:#fff;cursor:default">
-        <span ondragstart="event.stopPropagation()" style="font-size:18px;color:#ccc;cursor:grab;padding:0 8px 0 0;flex-shrink:0;-webkit-user-select:none;user-select:none">☰</span>
-        <div style="flex:1;cursor:pointer;min-width:0" onclick="openBigCatEdit('${type}','${big}')">
+        style="display:flex;align-items:center;padding:11px 12px;${border};background:#fff">
+        <span style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;flex-shrink:0;-webkit-user-select:none;user-select:none;touch-action:none">☰</span>
+        <div style="flex:1;min-width:0" onclick="event.stopPropagation();openBigCatEdit('${type}','${big}')">
           <div style="font-size:14px;font-weight:700;color:#222">${big}</div>
           <div style="font-size:11px;color:#aaa;margin-top:2px">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div>
         </div>
-        <span style="font-size:11px;font-weight:700;color:#ccc;margin-right:6px">${CATS[type][big].length}個</span>
-        <span style="font-size:15px;color:#ccc;cursor:pointer" onclick="openBigCatEdit('${type}','${big}')">›</span>
+        <span style="font-size:11px;color:#ccc;margin-right:4px">${CATS[type][big].length}個</span>
+        <button onclick="event.stopPropagation();openBigCatEdit('${type}','${big}')" style="background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:4px 6px;flex-shrink:0">›</button>
       </div>`;
     }).join('');
   });
@@ -1674,12 +1675,22 @@ function catDragEnd(e){
 function openBigCatEdit(type,big){
   editBigType=type;editBig=big;
   const isNew=big===null;
-  document.getElementById('bigcat-edit-title').textContent=isNew?'新增大類':'編輯大類';
-  document.getElementById('bigcat-del-btn').style.display=isNew?'none':'flex';
-  document.getElementById('bigcat-name').value=isNew?'':big;
-  document.getElementById('new-sub').value='';
+  const titleEl=document.getElementById('bigcat-edit-title');
+  const delBtn=document.getElementById('bigcat-del-btn');
+  const nameInput=document.getElementById('bigcat-name');
+  const newSubInput=document.getElementById('new-sub');
+  if(titleEl) titleEl.textContent=isNew?'新增大類':'編輯大類';
+  if(delBtn) delBtn.style.display=isNew?'none':'flex';
+  if(nameInput) nameInput.value=isNew?'':big;
+  if(newSubInput) newSubInput.value='';
   renderSubTags();
-  openSP('sp-bigcat-edit');
+  // 確保 sp-bigcat-edit 顯示在最上層
+  const el=document.getElementById('sp-bigcat-edit');
+  if(el){
+    el.style.display='flex';
+    el.style.flexDirection='column';
+    el.style.zIndex='202';
+  }
 }
 function saveBigCatName(){
   const newName=document.getElementById('bigcat-name').value.trim();if(!newName)return;
@@ -1724,7 +1735,13 @@ function addSubCat(){
   const v=document.getElementById('new-sub').value.trim();if(!v||!editBig)return;
   CATS[editBigType][editBig].push(v);document.getElementById('new-sub').value='';renderSubTags();renderCats();
 }
-function openSubCatEdit(i){editSubIdx=i;document.getElementById('subcat-name').value=CATS[editBigType][editBig][i];openSP('sp-subcat-edit');}
+function openSubCatEdit(i){
+  editSubIdx=i;
+  const nameInput=document.getElementById('subcat-name');
+  if(nameInput) nameInput.value=CATS[editBigType][editBig][i];
+  const el=document.getElementById('sp-subcat-edit');
+  if(el){el.style.display='flex';el.style.flexDirection='column';el.style.zIndex='203';}
+}
 function saveSubCat(){const v=document.getElementById('subcat-name').value.trim();if(!v)return;CATS[editBigType][editBig][editSubIdx]=v;closeSP('sp-subcat-edit');renderSubTags();renderCats();}
 function deleteSubCat(){if(confirm(`確定刪除「${CATS[editBigType][editBig][editSubIdx]}」？`)){CATS[editBigType][editBig].splice(editSubIdx,1);closeSP('sp-subcat-edit');renderSubTags();renderCats();}}
 function renderSettle(){
