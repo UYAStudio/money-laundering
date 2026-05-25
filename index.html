@@ -699,17 +699,15 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--tp);overfl
       <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="add-date" type="date" style="color:var(--tp)"/></div>
       <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="add-note" type="text" placeholder="選填"/></div>
       <div class="ef-row"><span class="ef-label">成員</span><select class="ef-select" id="add-member"></select></div>
-      <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="add-payer"></select></div>
-      <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="add-acc"></select></div>
+      <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="add-acc" onchange="onAccChange(this.value)"></select></div>
+      <div class="ef-row"><span class="ef-label">付款</span><span class="ef-input" id="add-payer-display" style="color:var(--ts)">—</span><input type="hidden" id="add-payer-val"/></div>
     </div>
     <div style="padding:10px 18px 16px"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
   </div>
-  <div class="xfr-form" id="add-xfr">
+  <div class="xfr-form" id="add-xfr" style="overflow-y:auto">
     <div class="amt-section" style="padding:0 0 10px" onclick="openKb('add')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="add-xamt-val">0</div></div>
     <div class="xfr-lbl">帳戶轉帳</div>
     <div class="xfr-arrow-row"><div class="xfr-field"><select id="add-xfa"></select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="add-xta"></select></div></div>
-    <div class="xfr-lbl" style="margin-top:6px">成員互轉</div>
-    <div class="xfr-arrow-row"><div class="xfr-field"><select id="add-xfm"></select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="add-xtm"></select></div></div>
     <div class="ef-row" style="margin-top:4px"><span class="ef-label">日期</span><input class="ef-input" id="add-xdate" type="date" style="color:var(--tp)"/></div>
     <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="add-xnote" type="text" placeholder="選填"/></div>
     <div style="padding:10px 0 0"><button class="btn-save" onclick="saveNewRec()">儲存</button></div>
@@ -1048,6 +1046,32 @@ function renderRecs(){
   renderRecList(tabData);
 }
 
+function calcAccBal(acc){
+  const name=acc.name;
+  const base=acc.balance||0;
+  // 如果有 balanceHistory，用最新一筆的日期和金額作為起始點
+  // 只計算該日期之後（含當天）的記錄
+  let startDate=null, startBal=base;
+  if(acc.balanceHistory&&acc.balanceHistory.length>0){
+    // balanceHistory 是 unshift 存的，第一筆是最新
+    const latest=acc.balanceHistory[0];
+    startDate=latest.date;
+    startBal=latest.to;
+  }
+  let inc=0,exp=0,xfrIn=0,xfrOut=0;
+  recs.forEach(r=>{
+    // 只計算更新餘額日期之後的記錄
+    if(startDate&&r.date<startDate) return;
+    if(r.type==='inc'&&r.account===name) inc+=r.amount;
+    else if(r.type==='exp'&&r.account===name) exp+=r.amount;
+    else if(r.type==='xfr'){
+      if(r.toAcc===name) xfrIn+=r.amount;
+      if(r.fromAcc===name) xfrOut+=r.amount;
+    }
+  });
+  return startBal+inc-exp+xfrIn-xfrOut;
+}
+
 const fmtS=n=>{const a=Math.round(Math.abs(n));return a>=10000?(a/1000).toFixed(0)+'k':a>=1000?(a/1000).toFixed(1)+'k':String(a);};
 
 function renderCal(allData,tabData){
@@ -1231,8 +1255,8 @@ function openMemDet(mem,col,field){
    ASSET
 ══════════════════════════════════ */
 function renderAsset(){
-  const pos=accounts.filter(a=>a.balance>0&&a.type!=='card').reduce((s,a)=>s+a.balance,0);
-  const lb=accounts.filter(a=>a.balance<0||a.type==='card').reduce((s,a)=>s+a.balance,0);
+  const pos=accounts.filter(a=>a.type!=='card').reduce((s,a)=>{const b=calcAccBal(a);return b>0?s+b:s;},0);
+  const lb=accounts.filter(a=>a.type==='card').reduce((s,a)=>s+calcAccBal(a),0)+accounts.filter(a=>a.type!=='card').reduce((s,a)=>{const b=calcAccBal(a);return b<0?s+b:s;},0);
   const net=pos+lb;
   const na=document.getElementById('net-amt');na.textContent=(net<0?'-':'')+fmt(net);na.style.color=net<0?'#b07070':'var(--tp)';
   document.getElementById('asset-disp').textContent=fmt(pos);
@@ -1251,7 +1275,8 @@ function renderAsset(){
     html+=`<div class="acc-section"><div class="acc-hdr"><span class="acc-hdr-title">${ACC_TYPE_LBL[t]}</span><button class="acc-add-btn" onclick="openAccEdit(null,'${t}')">+ 新增</button></div>`;
     list.forEach(a=>{
       const gi=accounts.indexOf(a);
-      html+=`<div class="acc-item" onclick="openAccDet(${gi})"><div class="acc-dot" style="background:${a.color}"></div><div class="acc-info"><div class="acc-name">${a.name}</div><div class="acc-sub">${a.owner} · ${ACC_TYPE_LBL[a.type]}</div></div><div class="acc-bal" style="color:${a.balance<0?'#b07070':'var(--tp)'}">${a.balance<0?'-':''}${fmt(a.balance)}</div></div>`;
+      const aBal=calcAccBal(a);
+      html+=`<div class="acc-item" onclick="openAccDet(${gi})"><div class="acc-dot" style="background:${a.color}"></div><div class="acc-info"><div class="acc-name">${a.name}</div><div class="acc-sub">${a.owner} · ${ACC_TYPE_LBL[a.type]}</div></div><div class="acc-bal" style="color:${aBal<0?'#b07070':'var(--tp)'}">${aBal<0?'-':''}${fmt(aBal)}</div></div>`;
     });
     html+='</div>';
   });
@@ -1288,7 +1313,8 @@ function setAccDetTab(t,btn){
 function renderAccDetList(){
   if(accDetIdx===null)return;
   const a=accounts[accDetIdx];
-  const r2=recs.filter(r=>r.account===a.name);
+  // 包含轉帳記錄（fromAcc 或 toAcc 是此帳戶）
+  const r2=recs.filter(r=>r.account===a.name||(r.type==='xfr'&&(r.fromAcc===a.name||r.toAcc===a.name)));
   const byD={};r2.forEach(r=>{if(!byD[r.date])byD[r.date]=[];byD[r.date].push(r);});
   const dates=Object.keys(byD).sort((a,b)=>b.localeCompare(a));
   let html='';
@@ -1297,9 +1323,17 @@ function renderAccDetList(){
     const dt=dr.reduce((s,r)=>r.type==='inc'?s+r.amount:r.type==='exp'?s-r.amount:s,0);
     html+=`<div class="date-hdr"><span class="date-lbl">${date.slice(5).replace('-','/')}</span><span style="font-size:12px;font-weight:700;color:${dt>=0?'#6a9a6a':'#b07070'}">${dt>=0?'+':'-'}${fmt(dt)}</span></div>`;
     dr.forEach(r=>{
-      const gi=recs.indexOf(r);const col=CAT_COL[r.cat]||'#9e9890';
-      const sign=r.type==='inc'?'+':r.amount<0?'+':'-';
-      html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content','kb-are')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+      const gi=recs.indexOf(r);
+      if(r.type==='xfr'){
+        const isIn=r.toAcc===a.name;
+        const other=isIn?r.fromAcc:r.toAcc;
+        const otherMem=isIn?r.fromMem:r.toMem;
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content','kb-are')"><div class="tx-dot" style="background:#92a3b0"></div><div class="tx-info"><div class="tx-name">轉帳 ${isIn?'← 收入':'→ 轉出'}</div><div class="tx-sub">${otherMem} · ${other}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt" style="color:${isIn?'#6a9a6a':'#b07070'}">${isIn?'+':'-'}${fmt(r.amount)}</div><div class="tx-mem">${isIn?r.toMem:r.fromMem}</div></div></div>`;
+      } else {
+        const col=CAT_COL[r.cat]||'#9e9890';
+        const sign=r.type==='inc'?'+':r.amount<0?'+':'-';
+        html+=`<div class="tx-item" onclick="openRecEdit(${gi},'sp-acc-rec-edit','are-content','kb-are')"><div class="tx-dot" style="background:${col}"></div><div class="tx-info"><div class="tx-name">${r.cat}・${r.sub}</div><div class="tx-sub">${r.payer}${r.note?' · '+r.note:''}</div></div><div class="tx-right"><div class="tx-amt ${r.type==='inc'?'i':'e'}">${sign}${fmt(r.amount)}</div><div class="tx-mem">${r.member}</div></div></div>`;
+      }
     });
   });
   // 餘額調整歷史
@@ -1410,25 +1444,33 @@ function renderAccColors(){
 function pickAccCol(c){accPickCol=c;renderAccColors();}
 async function saveAcc(){
   const name=document.getElementById('acc-name').value.trim();if(!name)return;
-  const obj={name,color:accPickCol,type:document.getElementById('acc-type').value,owner:document.getElementById('acc-owner').value,balance:parseFloat(document.getElementById('acc-bal').value)||0};
   if(editAccIdx===null){
+    const obj={name,color:accPickCol,type:document.getElementById('acc-type').value,owner:document.getElementById('acc-owner').value,balance:parseFloat(document.getElementById('acc-bal').value)||0};
     accounts.push(obj);
     await fbSaveAcc(accounts[accounts.length-1]);
   } else {
-    const oldName=accounts[editAccIdx].name;
-    Object.assign(accounts[editAccIdx],obj);
-    await fbSaveAcc(accounts[editAccIdx]);
-    // 帳戶改名：同步更新所有記錄的 account 欄位
+    const acc=accounts[editAccIdx];
+    const oldName=acc.name;
+    // 保留原有欄位，只更新編輯的部分
+    acc.name=name;
+    acc.color=accPickCol;
+    acc.type=document.getElementById('acc-type').value;
+    acc.owner=document.getElementById('acc-owner').value;
+    acc.balance=parseFloat(document.getElementById('acc-bal').value)||0;
+    await fbSaveAcc(acc);
+    // 帳戶改名：同步更新所有記錄
     if(oldName!==name){
       for(const r of recs){
-        if(r.account===oldName){r.account=name;await fbSaveRec(r);}
-        if(r.fromAcc===oldName){r.fromAcc=name;await fbSaveRec(r);}
-        if(r.toAcc===oldName){r.toAcc=name;await fbSaveRec(r);}
+        let changed=false;
+        if(r.account===oldName){r.account=name;changed=true;}
+        if(r.fromAcc===oldName){r.fromAcc=name;changed=true;}
+        if(r.toAcc===oldName){r.toAcc=name;changed=true;}
+        if(changed) await fbSaveRec(r);
       }
     }
   }
   closeSP('sp-acc-edit');renderAsset();renderRecs();
-  if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=obj.name;
+  if(accDetIdx!==null&&editAccIdx!==null)document.getElementById('acc-det-title').textContent=name;
 }
 // ── 借貸管理 ──
 let loans=[]; // {id, type:'out'|'in', person, amount, date, note, settled}
@@ -1779,6 +1821,9 @@ function openAdd(){
   document.getElementById('add-date').value=todayStr;
   document.getElementById('add-xdate').value=todayStr;
   setAddType('exp');updateAddSelects();
+  // 預設帶入第一個帳戶的付款人
+  const firstAcc=document.getElementById('add-acc');
+  if(firstAcc&&firstAcc.value) onAccChange(firstAcc.value);
   document.getElementById('pg-add').classList.add('open');
 }
 function closeAdd(){document.getElementById('pg-add').classList.remove('open');closeKb();}
@@ -1805,11 +1850,34 @@ function buildAddCatUI(){
 }
 function selAddBig(c){addBig=c;addSub=(CATS[addType][c]||[])[0]||c;buildAddCatUI();}
 function selAddSub(s){addSub=s;buildAddCatUI();}
+function buildAccOpts(){
+  const ACC_TYPE_LBL={cash:'現金',bank:'銀行帳戶',card:'信用卡',wallet:'電子錢包',virtual:'虛擬帳戶'};
+  const order=['cash','bank','card','wallet','virtual'];
+  let opts='';
+  order.forEach(t=>{
+    const list=accounts.filter(a=>a.type===t);
+    if(!list.length)return;
+    opts+=`<optgroup label="${ACC_TYPE_LBL[t]}">`;
+    list.forEach(a=>{opts+=`<option value="${a.name}">${a.name}・${a.owner}</option>`;});
+    opts+='</optgroup>';
+  });
+  return opts;
+}
 function updateAddSelects(){
-  const accOpts=accounts.map(a=>`<option>${a.name}</option>`).join('');
+  const accOpts=buildAccOpts();
   const memOpts=members.map(m=>`<option>${m.name}</option>`).join('');
   ['add-acc','add-xfa','add-xta'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=accOpts;});
-  ['add-member','add-payer','add-xfm','add-xtm'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=memOpts;});
+  ['add-member'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=memOpts;});
+}
+function onAccChange(accName){
+  // 帳戶選好後自動帶入付款人（帳戶所屬人）
+  const acc=accounts.find(a=>a.name===accName);
+  if(!acc)return;
+  const payerEl=document.getElementById('add-payer-display');
+  if(payerEl) payerEl.textContent=acc.owner;
+  // 內部記錄用的 hidden payer
+  const hiddenEl=document.getElementById('add-payer-val');
+  if(hiddenEl) hiddenEl.value=acc.owner;
 }
 async function saveNewRec(){
   let r;
@@ -1818,24 +1886,14 @@ async function saveNewRec(){
     const dateStr=document.getElementById('add-xdate').value||curMonth+'-01';
     const fromAccName=document.getElementById('add-xfa').value;
     const toAccName=document.getElementById('add-xta').value;
-    r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:fromAccName,toAcc:toAccName,fromMem:document.getElementById('add-xfm').value,toMem:document.getElementById('add-xtm').value,note:document.getElementById('add-xnote').value||''};
-    // 更新帳戶餘額
-    const fromAcc=accounts.find(ac=>ac.name===fromAccName);
-    const toAcc=accounts.find(ac=>ac.name===toAccName);
-    if(fromAcc){fromAcc.balance-=a;await fbSaveAcc(fromAcc);}
-    if(toAcc){toAcc.balance+=a;await fbSaveAcc(toAcc);}
+    r={date:dateStr,type:'xfr',cat:'轉帳',sub:'轉帳',amount:a,fromAcc:fromAccName,toAcc:toAccName,note:document.getElementById('add-xnote').value||''};
+
   } else {
     const a=parseFloat(kbVal)||0;if(!a){alert('請輸入金額');return;}
     const dateStr=document.getElementById('add-date').value||curMonth+'-01';
     const accName=document.getElementById('add-acc').value;
-    r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:accName,payer:document.getElementById('add-payer').value,member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
-    // 更新帳戶餘額
-    const acc=accounts.find(ac=>ac.name===accName);
-    if(acc){
-      if(addType==='exp') acc.balance-=a;
-      else if(addType==='inc') acc.balance+=a;
-      await fbSaveAcc(acc);
-    }
+    r={date:dateStr,type:addType,cat:addBig,sub:addSub,amount:a,account:accName,payer:document.getElementById('add-payer-val').value||accounts.find(a=>a.name===accName)?.owner||'',member:document.getElementById('add-member').value,note:document.getElementById('add-note').value||''};
+
   }
   recs.unshift(r);await fbSaveRec(r);
   closeAdd();renderRecs();renderAsset();
@@ -1847,7 +1905,19 @@ async function saveNewRec(){
 function openRecEdit(gi,spId,contentId,kbId){
   editRecIdx=gi;editSpId=spId;editContentId=contentId;editKbId=kbId;
   const r=recs[gi];eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;kbVal=String(r.amount);
-  const accOpts=accounts.map(a=>`<option>${a.name}</option>`).join('');
+  const accOpts=(()=>{
+    const ACC_TYPE_LBL={cash:'現金',bank:'銀行帳戶',card:'信用卡',wallet:'電子錢包',virtual:'虛擬帳戶'};
+    const order=['cash','bank','card','wallet','virtual'];
+    let opts='';
+    order.forEach(t=>{
+      const list=accounts.filter(a=>a.type===t);
+      if(!list.length)return;
+      opts+=`<optgroup label="${ACC_TYPE_LBL[t]}">`;
+      list.forEach(a=>{opts+=`<option value="${a.name}">${a.name}・${a.owner}</option>`;});
+      opts+='</optgroup>';
+    });
+    return opts;
+  })();
   const memOpts=members.map(m=>`<option>${m.name}</option>`).join('');
   const pfx=contentId; // use contentId as scope prefix
   document.getElementById(contentId).innerHTML=`
@@ -1862,10 +1932,11 @@ function openRecEdit(gi,spId,contentId,kbId){
       <div class="sub-cat-grid" id="${pfx}-e-sub-grid"></div>
       <div class="edit-fields">
         <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="e-date" type="date" value="${r.date}" style="color:var(--tp)"/></div>
+        <div class="ef-row"><span class="ef-label">日期</span><input class="ef-input" id="e-date" type="date" value="${r.date}" style="color:var(--tp)"/></div>
         <div class="ef-row"><span class="ef-label">備註</span><input class="ef-input" id="e-note" placeholder="選填" value="${r.note||''}"/></div>
         <div class="ef-row"><span class="ef-label">成員</span><select class="ef-select" id="e-member">${memOpts}</select></div>
-        <div class="ef-row"><span class="ef-label">付款</span><select class="ef-select" id="e-payer">${memOpts}</select></div>
-        <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="e-acc">${accOpts}</select></div>
+        <div class="ef-row"><span class="ef-label">帳戶</span><select class="ef-select" id="e-acc" onchange="onEditAccChange(this.value)">${accOpts}</select></div>
+        <div class="ef-row"><span class="ef-label">付款</span><span class="ef-input" id="e-payer-display" style="color:var(--ts)">${r.payer||'—'}</span><input type="hidden" id="e-payer-val" value="${r.payer||''}"/></div>
       </div>
       <div style="padding:10px 18px 16px"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
     </div>
@@ -1873,8 +1944,6 @@ function openRecEdit(gi,spId,contentId,kbId){
       <div class="amt-section" style="padding:0 0 10px" onclick="openKb('edit')"><div class="amt-lbl">金額（NT$）</div><div class="amt-val" id="${pfx}-e-xamt-val">${fmt(r.amount)}</div></div>
       <div class="xfr-lbl">帳戶轉帳</div>
       <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfa">${accOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xta">${accOpts}</select></div></div>
-      <div class="xfr-lbl" style="margin-top:6px">成員互轉</div>
-      <div class="xfr-arrow-row"><div class="xfr-field"><select id="e-xfm">${memOpts}</select></div><span class="xfr-arr">→</span><div class="xfr-field"><select id="e-xtm">${memOpts}</select></div></div>
       <div class="ef-row" style="margin-top:4px"><span class="ef-label">日期</span><input class="ef-input" id="e-xdate" type="date" value="${r.date}" style="color:var(--tp)"/></div>
       <div class="ef-row" style="margin-top:4px"><span class="ef-label">備註</span><input class="ef-input" id="e-xnote" placeholder="選填" value="${r.note||''}"/></div>
       <div style="padding:10px 0 0"><button class="btn-save" onclick="saveRecEdit()">儲存</button></div>
@@ -1882,11 +1951,27 @@ function openRecEdit(gi,spId,contentId,kbId){
   // set type AFTER HTML is rendered
   setEType(r.type, false);
   // fill values
-  if(r.type==='xfr'){sv('e-xfa',r.fromAcc);sv('e-xta',r.toAcc);sv('e-xfm',r.fromMem);sv('e-xtm',r.toMem);}
-  else{buildECatUI();sv('e-acc',r.account);sv('e-payer',r.payer);sv('e-member',r.member);}
+  if(r.type==='xfr'){sv('e-xfa',r.fromAcc);sv('e-xta',r.toAcc);}
+  else{buildECatUI();sv('e-acc',r.account);sv('e-member',r.member);onEditAccChange(r.account);}
   openSP(spId);
 }
-function sv(id,val){const el=document.getElementById(id);if(!el)return;for(let o of el.options){if(o.text===val){el.value=o.value;return;}}}
+function onEditAccChange(accName){
+  const acc=accounts.find(a=>a.name===accName);
+  if(!acc)return;
+  const d=document.getElementById('e-payer-display');
+  const h=document.getElementById('e-payer-val');
+  if(d) d.textContent=acc.owner;
+  if(h) h.value=acc.owner;
+}
+function onEditAccChange(accName){
+  const acc=accounts.find(a=>a.name===accName);
+  if(!acc)return;
+  const d=document.getElementById('e-payer-display');
+  const h=document.getElementById('e-payer-val');
+  if(d)d.textContent=acc.owner;
+  if(h)h.value=acc.owner;
+}
+function sv(id,val){const el=document.getElementById(id);if(!el)return;for(let o of el.options){if(o.value===val||o.text===val||o.text.startsWith(val+' ·')){el.value=o.value;return;}}}
 function setEType(t,rebuild=true){
   eType=t;
   const p=editContentId||'re-content';
@@ -1923,13 +2008,12 @@ async function saveRecEdit(){
     r.type='xfr';r.amount=parseFloat(kbVal)||0;
     const xd=document.getElementById('e-xdate');r.date=xd?.value||r.date;
     r.fromAcc=document.getElementById('e-xfa').value;r.toAcc=document.getElementById('e-xta').value;
-    r.fromMem=document.getElementById('e-xfm').value;r.toMem=document.getElementById('e-xtm').value;
     r.note=document.getElementById('e-xnote').value;
   } else {
     r.type=eType;r.cat=eBig;r.sub=eSub;r.amount=parseFloat(kbVal)||0;
     const ed=document.getElementById('e-date');r.date=ed?.value||r.date;
     r.account=document.getElementById('e-acc').value;
-    r.payer=document.getElementById('e-payer').value;
+    r.payer=document.getElementById('e-payer-val').value||r.payer;
     r.member=document.getElementById('e-member').value;
     r.note=document.getElementById('e-note').value;
   }
