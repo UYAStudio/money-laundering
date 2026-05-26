@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>家庭記帳</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Firebase SDK -->
 <script type="module">
@@ -1724,9 +1725,7 @@ function renderCats(){
       const border=i<arr.length-1?'border-bottom:1px solid #f0f0f0':'';
       return `<div class="cat-row" data-type="${type}" data-cat="${big}"
         style="display:flex;align-items:center;padding:11px 12px;${border};background:#fff">
-        <span style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;flex-shrink:0;-webkit-user-select:none;user-select:none;touch-action:none"
-          onmousedown="catDragStart(event,'${type}','${big}')"
-          ontouchstart="catDragStart(event,'${type}','${big}')">☰</span>
+        <span class="drag-handle" style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;flex-shrink:0;-webkit-user-select:none;user-select:none;touch-action:none">☰</span>
         <div style="flex:1;min-width:0" onclick="event.stopPropagation();openBigCatEdit('${type}','${big}')">
           <div style="font-size:14px;font-weight:700;color:#222">${big}</div>
           <div style="font-size:11px;color:#aaa;margin-top:2px">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div>
@@ -1807,13 +1806,12 @@ function renderSubTags(){
   el.innerHTML=subs.map((s,i)=>`
     <div class="sub-row" data-idx="${i}"
       style="display:flex;align-items:center;padding:10px 12px;${i<subs.length-1?'border-bottom:1px solid #f0f0f0':''}">
-      <span style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;-webkit-user-select:none;user-select:none;touch-action:none"
-        onmousedown="subDragStart(event,${i})"
-        ontouchstart="subDragStart(event,${i})">☰</span>
+      <span class="drag-handle" style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;-webkit-user-select:none;user-select:none;touch-action:none">☰</span>
       <span style="flex:1;font-size:14px;font-weight:600;color:#222">${s}</span>
-      <button onclick="openSubCatEdit(${i})" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:13px;padding:2px 8px;border-radius:8px;touch-action:auto">✎</button>
-      <button onclick="delSubDirect(${i})" style="background:none;border:none;cursor:pointer;color:#e08080;font-size:14px;padding:2px 6px;border-radius:8px;touch-action:auto">✕</button>
+      <button onclick="openSubCatEdit(${i})" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:13px;padding:2px 8px;border-radius:8px">✎</button>
+      <button onclick="delSubDirect(${i})" style="background:none;border:none;cursor:pointer;color:#e08080;font-size:14px;padding:2px 6px;border-radius:8px">✕</button>
     </div>`).join('');
+  setTimeout(()=>initSubSortable(),50);
 }
 
 
