@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>家庭記帳</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Firebase SDK -->
 <script type="module">
@@ -1723,42 +1722,42 @@ function renderCats(){
     if(!el)return;
     el.innerHTML=keys.map((big,i,arr)=>{
       const border=i<arr.length-1?'border-bottom:1px solid #f0f0f0':'';
-      return `<div class="cat-row" data-type="${type}" data-cat="${big}"
-        style="display:flex;align-items:center;padding:11px 12px;${border};background:#fff">
-        <span class="drag-handle" style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;flex-shrink:0;-webkit-user-select:none;user-select:none;touch-action:none">☰</span>
-        <div style="flex:1;min-width:0" onclick="event.stopPropagation();openBigCatEdit('${type}','${big}')">
+      return `<div style="display:flex;align-items:center;padding:10px 12px;${border};background:#fff">
+        <div style="display:flex;flex-direction:column;gap:2px;margin-right:8px;flex-shrink:0">
+          <button onclick="moveCat('${type}','${big}',-1)" style="background:none;border:none;cursor:pointer;color:${i===0?'#e0e0e0':'#bbb'};font-size:13px;line-height:1;padding:1px 4px;font-family:'Nunito',sans-serif" ${i===0?'disabled':''}>▲</button>
+          <button onclick="moveCat('${type}','${big}',1)" style="background:none;border:none;cursor:pointer;color:${i===arr.length-1?'#e0e0e0':'#bbb'};font-size:13px;line-height:1;padding:1px 4px;font-family:'Nunito',sans-serif" ${i===arr.length-1?'disabled':''}>▼</button>
+        </div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openBigCatEdit('${type}','${big}')">
           <div style="font-size:14px;font-weight:700;color:#222">${big}</div>
           <div style="font-size:11px;color:#aaa;margin-top:2px">${CATS[type][big].slice(0,5).join('、')}${CATS[type][big].length>5?'…':''}</div>
         </div>
         <span style="font-size:11px;color:#ccc;margin-right:4px">${CATS[type][big].length}個</span>
-        <button onclick="event.stopPropagation();openBigCatEdit('${type}','${big}')" style="background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:4px 6px;flex-shrink:0">›</button>
+        <button onclick="openBigCatEdit('${type}','${big}')" style="background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:4px 6px;flex-shrink:0">›</button>
       </div>`;
     }).join('');
   });
 }
 
-let dragCat='',dragType='';
-function catDragStart(e,type,cat){
-  dragCat=cat;dragType=type;
-  setTimeout(()=>{if(e.target)e.target.style.opacity='0.4';},0);
-}
-function catDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';}
-function catDrop(e,type,cat){
-  e.preventDefault();
-  if(dragType!==type||dragCat===cat)return;
+function moveCat(type,big,dir){
   const keys=Object.keys(CATS[type]);
-  const fi=keys.indexOf(dragCat),ti=keys.indexOf(cat);
-  if(fi<0||ti<0)return;
-  const reordered=[...keys];
-  reordered.splice(fi,1);reordered.splice(ti,0,dragCat);
-  const newObj={};
-  reordered.forEach(k=>{newObj[k]=CATS[type][k];});
-  CATS[type]=newObj;
+  const i=keys.indexOf(big);
+  const ni=i+dir;
+  if(ni<0||ni>=keys.length)return;
+  const r=[...keys];r.splice(i,1);r.splice(ni,0,big);
+  const o={};r.forEach(k=>o[k]=CATS[type][k]);
+  CATS[type]=o;
   renderCats();fbSaveCats();
 }
-function catDragEnd(e){
-  document.querySelectorAll('.cat-row').forEach(r=>r.style.opacity='1');
+
+function moveSub(i,dir){
+  const subs=CATS[editBigType][editBig];
+  const ni=i+dir;
+  if(ni<0||ni>=subs.length)return;
+  const item=subs.splice(i,1)[0];
+  subs.splice(ni,0,item);
+  renderSubTags();fbSaveCats();
 }
+
 function openBigCatEdit(type,big){
   editBigType=type;editBig=big;
   const isNew=big===null;
@@ -1804,14 +1803,15 @@ function renderSubTags(){
     return;
   }
   el.innerHTML=subs.map((s,i)=>`
-    <div class="sub-row" data-idx="${i}"
-      style="display:flex;align-items:center;padding:10px 12px;${i<subs.length-1?'border-bottom:1px solid #f0f0f0':''}">
-      <span class="drag-handle" style="font-size:18px;color:#ccc;cursor:grab;padding:0 10px 0 0;-webkit-user-select:none;user-select:none;touch-action:none">☰</span>
+    <div style="display:flex;align-items:center;padding:9px 12px;${i<subs.length-1?'border-bottom:1px solid #f0f0f0':''}">
+      <div style="display:flex;flex-direction:column;gap:1px;margin-right:8px;flex-shrink:0">
+        <button onclick="moveSub(${i},-1)" style="background:none;border:none;cursor:pointer;color:${i===0?'#e0e0e0':'#aaa'};font-size:12px;line-height:1;padding:1px 3px;font-family:'Nunito',sans-serif" ${i===0?'disabled':''}>▲</button>
+        <button onclick="moveSub(${i},1)" style="background:none;border:none;cursor:pointer;color:${i===subs.length-1?'#e0e0e0':'#aaa'};font-size:12px;line-height:1;padding:1px 3px;font-family:'Nunito',sans-serif" ${i===subs.length-1?'disabled':''}>▼</button>
+      </div>
       <span style="flex:1;font-size:14px;font-weight:600;color:#222">${s}</span>
       <button onclick="openSubCatEdit(${i})" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:13px;padding:2px 8px;border-radius:8px">✎</button>
       <button onclick="delSubDirect(${i})" style="background:none;border:none;cursor:pointer;color:#e08080;font-size:14px;padding:2px 6px;border-radius:8px">✕</button>
     </div>`).join('');
-  setTimeout(()=>initSubSortable(),50);
 }
 
 
