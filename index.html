@@ -876,8 +876,15 @@ window._onFbReady = async ()=>{
     try{
       const fbCats = await window._fbGetAll('categories');
       if(fbCats.length>0&&fbCats[0].exp){
-        CATS.exp=fbCats[0].exp;
-        CATS.inc=fbCats[0].inc;
+        const d=fbCats[0];
+        // 支援新格式（陣列）和舊格式（物件）
+        if(Array.isArray(d.exp)){
+          CATS.exp=arrToCats(d.exp);
+          CATS.inc=arrToCats(d.inc);
+        } else {
+          CATS.exp=d.exp;
+          CATS.inc=d.inc;
+        }
       }
     } catch(e){ console.log('cats load failed',e); }
 
@@ -914,15 +921,23 @@ async function fbSaveMem(m){
   if(m._id) await window._fbUpdate('members', m._id, m);
   else { const ref=await window._fbSave('members',m); if(ref) m._id=ref.id; }
 }
+function catsToArr(obj){
+  return Object.keys(obj).map((k,i)=>({name:k,subs:obj[k],order:i}));
+}
+function arrToCats(arr){
+  const obj={};
+  arr.sort((a,b)=>a.order-b.order).forEach(item=>obj[item.name]=item.subs);
+  return obj;
+}
 async function fbSaveCats(){
   if(!window._fbReady)return;
-  // 存成單一文件，key = 'default'
   try{
-    await window._fbUpdate('categories','default',{exp:CATS.exp,inc:CATS.inc,updatedAt:Date.now()});
-  } catch(e){
-    // 文件不存在就新建
-    await window._fbSave('categories',{exp:CATS.exp,inc:CATS.inc});
-  }
+    await window._fbUpdate('categories','default',{
+      exp:catsToArr(CATS.exp),
+      inc:catsToArr(CATS.inc),
+      updatedAt:Date.now()
+    });
+  } catch(e){ console.error('fbSaveCats error',e); }
 }
 async function fbDeleteMem(m){
   if(!window._fbReady||!m._id)return;
@@ -1940,7 +1955,8 @@ async function saveNewRec(){
 ══════════════════════════════════ */
 function openRecEdit(gi,spId,contentId,kbId){
   editRecIdx=gi;editSpId=spId;editContentId=contentId;editKbId=kbId;
-  const r=recs[gi];eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;kbVal=String(r.amount);
+  const r=recs[gi];eType=r.type;eBig=r.cat;eSub=r.sub||r.cat;
+  kbVal=String(r.amount);kbExpr=String(r.amount);
   const accOpts=(()=>{
     const ACC_TYPE_LBL={cash:'現金',bank:'銀行帳戶',card:'信用卡',wallet:'電子錢包',virtual:'虛擬帳戶'};
     const order=['cash','bank','card','wallet','virtual'];
@@ -2039,13 +2055,18 @@ function selEBig(c){eBig=c;eSub=(CATS[eType][c]||[])[0]||c;buildECatUI();}
 function selESub(s){eSub=s;buildECatUI();}
 async function saveRecEdit(){
   const r=recs[editRecIdx];
+  const p=editContentId||'re-content';
+  // 金額：優先用 kbVal，但確保跟顯示一致
+  const amtEl=document.getElementById(eType==='xfr'?p+'-e-xamt-val':p+'-e-amt-val');
+  const displayAmt=amtEl?parseFloat(amtEl.textContent.replace(/,/g,''))||0:0;
+  const finalAmt=parseFloat(kbVal)||displayAmt||r.amount;
   if(eType==='xfr'){
-    r.type='xfr';r.amount=parseFloat(kbVal)||0;
+    r.type='xfr';r.amount=finalAmt;
     const xd=document.getElementById('e-xdate');r.date=xd?.value||r.date;
     r.fromAcc=document.getElementById('e-xfa').value;r.toAcc=document.getElementById('e-xta').value;
     r.note=document.getElementById('e-xnote').value;
   } else {
-    r.type=eType;r.cat=eBig;r.sub=eSub;r.amount=parseFloat(kbVal)||0;
+    r.type=eType;r.cat=eBig;r.sub=eSub;r.amount=finalAmt;
     const ed=document.getElementById('e-date');r.date=ed?.value||r.date;
     r.account=document.getElementById('e-acc').value;
     r.payer=document.getElementById('e-payer-val').value||r.payer;
@@ -2055,6 +2076,7 @@ async function saveRecEdit(){
   await fbSaveRec(r);
   closeSP(editSpId);closeKb();renderRecs();
   if(editSpId==='sp-acc-rec-edit')renderAccDetList();
+  if(editSpId==='sp-chart-rec-edit')renderChart();
 }
 async function deleteRec(spId){
   if(!confirm('確定刪除這筆記錄？'))return;
